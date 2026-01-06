@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 remote-claude is a local-only web UI that connects to Claude Code CLI over stdin/stdout using newline-delimited JSON (`stream-json` mode). The server spawns one Claude process per session, streams output to the browser via SSE, and forwards tool permission prompts to the user.
 
+See `FORMAT.md` for the complete stdin/stdout protocol specification.
+
 ## Commands
 
 ```bash

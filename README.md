@@ -25,6 +25,7 @@ http://127.0.0.1:3333
 
 - `server/` — Express server, Claude process manager, session routing, and SSE endpoints.
 - `public/` — Static web UI (HTML/CSS/JS) served by the server.
+- `FORMAT.md` — Complete specification of the Claude CLI stream-json protocol.
 
 ## Configuration
 
@@ -51,7 +52,7 @@ Log categories include:
 - `PERMISSION` - Tool permission requests/responses
 - `HTTP` - All incoming requests
 
-Logs are useful for debugging and understanding Claude's message format for implementing new UI features.
+Logs are useful for debugging and understanding Claude's message format for implementing new UI features. See `FORMAT.md` for the complete protocol specification.
 
 ## Notes
 
