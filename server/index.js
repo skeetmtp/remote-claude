@@ -431,24 +431,27 @@ function createServer(options = {}) {
         toolUseID: entry.toolUseId,
       };
 
-      // For AskUserQuestion with allow, parse the message as updatedInput
-      if (behavior === "allow" && entry.toolName === "AskUserQuestion" && message) {
-        try {
-          response.updatedInput = JSON.parse(message);
-        } catch (parseError) {
-          log("PERMISSION", `Failed to parse AskUserQuestion answers`, {
-            error: parseError.message,
-            message
-          });
-          // Fall back to message field if parsing fails
-          response.message = message;
+      if (behavior === "allow") {
+        // For allow, we must provide updatedInput
+        if (entry.toolName === "AskUserQuestion" && message) {
+          // For AskUserQuestion, parse the message as updatedInput with answers
+          try {
+            response.updatedInput = JSON.parse(message);
+          } catch (parseError) {
+            log("PERMISSION", `Failed to parse AskUserQuestion answers`, {
+              error: parseError.message,
+              message
+            });
+            // Fall back to original input if parsing fails
+            response.updatedInput = entry.input;
+          }
+        } else {
+          // For other tools when allowing, use the original input as updatedInput
+          response.updatedInput = entry.input;
         }
-      } else if (message) {
-        // For other tools or deny, use message field
-        response.message = message;
       } else {
-        // No message provided
-        response.message = "";
+        // For deny, use message field
+        response.message = message || "";
       }
 
       this.send({

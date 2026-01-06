@@ -301,15 +301,155 @@ function showNextPermission() {
 
 function renderToolPermission(permission) {
   permissionTool.textContent = permission.toolName || "Tool";
-  permissionInput.textContent = JSON.stringify(permission.input || {}, null, 2);
 
-  // Show default allow/deny buttons
-  document.getElementById("permission-body").style.display = "block";
+  // Check if this is a file operation tool
+  if (["Write", "Edit", "Read"].includes(permission.toolName)) {
+    renderFileOperation(permission);
+  } else {
+    // Default rendering for other tools
+    permissionInput.textContent = JSON.stringify(permission.input || {}, null, 2);
+
+    // Show default allow/deny buttons
+    document.getElementById("permission-body").style.display = "block";
+    document.getElementById("file-operation-body").style.display = "none";
+    document.getElementById("question-body").style.display = "none";
+    document.getElementById("modal-actions").style.display = "flex";
+    document.getElementById("question-actions").style.display = "none";
+    document.querySelector(".modal-title").textContent = "Tool permission requested";
+    document.querySelector(".modal-footnote").textContent = "Default is deny unless you approve.";
+  }
+}
+
+function renderFileOperation(permission) {
+  const input = permission.input || {};
+  const toolName = permission.toolName;
+
+  // Hide default permission body, show file operation body
+  document.getElementById("permission-body").style.display = "none";
   document.getElementById("question-body").style.display = "none";
+  document.getElementById("file-operation-body").style.display = "block";
   document.getElementById("modal-actions").style.display = "flex";
   document.getElementById("question-actions").style.display = "none";
-  document.querySelector(".modal-title").textContent = "Tool permission requested";
-  document.querySelector(".modal-footnote").textContent = "Default is deny unless you approve.";
+
+  // Update modal title based on tool
+  const titles = {
+    "Write": "Create/overwrite file",
+    "Edit": "Edit file",
+    "Read": "Read file"
+  };
+  document.querySelector(".modal-title").textContent = titles[toolName] || "File operation requested";
+  document.querySelector(".modal-footnote").textContent = "Review the changes carefully before approving.";
+
+  // Get file operation body container
+  const fileOpBody = document.getElementById("file-operation-body");
+  fileOpBody.innerHTML = "";
+
+  // Show file path
+  if (input.file_path) {
+    const pathSection = document.createElement("div");
+    pathSection.className = "file-path-section";
+
+    const pathLabel = document.createElement("div");
+    pathLabel.className = "label";
+    pathLabel.textContent = "File path";
+
+    const pathValue = document.createElement("div");
+    pathValue.className = "file-path";
+    pathValue.textContent = input.file_path;
+
+    pathSection.appendChild(pathLabel);
+    pathSection.appendChild(pathValue);
+    fileOpBody.appendChild(pathSection);
+  }
+
+  // For Edit operations, show old and new strings
+  if (toolName === "Edit" && (input.old_string || input.new_string)) {
+    const editSection = document.createElement("div");
+    editSection.className = "edit-section";
+
+    if (input.old_string) {
+      const oldLabel = document.createElement("div");
+      oldLabel.className = "label";
+      oldLabel.textContent = "Remove";
+      editSection.appendChild(oldLabel);
+
+      const oldPre = document.createElement("pre");
+      oldPre.className = "code-block removed";
+      oldPre.textContent = input.old_string;
+      editSection.appendChild(oldPre);
+    }
+
+    if (input.new_string) {
+      const newLabel = document.createElement("div");
+      newLabel.className = "label";
+      newLabel.textContent = "Add";
+      editSection.appendChild(newLabel);
+
+      const newPre = document.createElement("pre");
+      newPre.className = "code-block added";
+      newPre.textContent = input.new_string;
+      editSection.appendChild(newPre);
+    }
+
+    if (input.replace_all !== undefined) {
+      const replaceAllNote = document.createElement("div");
+      replaceAllNote.className = "replace-all-note";
+      replaceAllNote.textContent = input.replace_all
+        ? "⚠ Will replace all occurrences"
+        : "Will replace first occurrence";
+      editSection.appendChild(replaceAllNote);
+    }
+
+    fileOpBody.appendChild(editSection);
+  }
+
+  // For Write operations, show content with line numbers
+  if (toolName === "Write" && input.content) {
+    const contentSection = document.createElement("div");
+    contentSection.className = "content-section";
+
+    const contentLabel = document.createElement("div");
+    contentLabel.className = "label";
+    contentLabel.textContent = `Content (${input.content.split('\n').length} lines)`;
+    contentSection.appendChild(contentLabel);
+
+    const codeBlock = document.createElement("div");
+    codeBlock.className = "code-block-container";
+
+    const lineNumbers = document.createElement("div");
+    lineNumbers.className = "line-numbers";
+
+    const codeContent = document.createElement("pre");
+    codeContent.className = "code-block";
+    codeContent.textContent = input.content;
+
+    const lines = input.content.split('\n');
+    lines.forEach((_, i) => {
+      const lineNum = document.createElement("div");
+      lineNum.textContent = i + 1;
+      lineNumbers.appendChild(lineNum);
+    });
+
+    codeBlock.appendChild(lineNumbers);
+    codeBlock.appendChild(codeContent);
+    contentSection.appendChild(codeBlock);
+    fileOpBody.appendChild(contentSection);
+  }
+
+  // For Read operations, just show basic info
+  if (toolName === "Read") {
+    if (input.offset !== undefined || input.limit !== undefined) {
+      const readInfo = document.createElement("div");
+      readInfo.className = "read-info";
+
+      const parts = [];
+      if (input.offset) parts.push(`Starting from line ${input.offset}`);
+      if (input.limit) parts.push(`Reading ${input.limit} lines`);
+
+      readInfo.textContent = parts.join(", ") || "Reading entire file";
+      fileOpBody.appendChild(readInfo);
+    }
+  }
 }
 
 function renderQuestionPrompt(permission) {
@@ -522,6 +662,13 @@ composer.addEventListener("submit", (event) => {
   if (!text) return;
   promptInput.value = "";
   sendMessage(text).catch((err) => appendSystem(err.message));
+});
+
+promptInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    composer.requestSubmit();
+  }
 });
 
 interruptBtn.addEventListener("click", () => {
