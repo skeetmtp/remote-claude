@@ -1,0 +1,391 @@
+"use strict";
+
+const sessionList = document.getElementById("session-list");
+const messagesEl = document.getElementById("messages");
+const sessionMeta = document.getElementById("session-meta");
+const newSessionBtn = document.getElementById("new-session");
+const modelInput = document.getElementById("model-input");
+const composer = document.getElementById("composer");
+const promptInput = document.getElementById("prompt");
+const interruptBtn = document.getElementById("interrupt");
+const closeSessionBtn = document.getElementById("close-session");
+const permissionModal = document.getElementById("permission-modal");
+const permissionTool = document.getElementById("permission-tool");
+const permissionInput = document.getElementById("permission-input");
+const allowToolBtn = document.getElementById("allow-tool");
+const denyToolBtn = document.getElementById("deny-tool");
+
+const STORAGE_KEYS = {
+  tokens: "remoteClaudeTokens",
+  activeSession: "remoteClaudeActiveSession",
+};
+
+const state = {
+  sessions: [],
+  tokens: new Map(),
+  activeId: null,
+  source: null,
+  pendingClientMessages: new Set(),
+  permissionQueue: [],
+  currentPermission: null,
+};
+
+function formatTime(iso) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  return date.toLocaleTimeString();
+}
+
+function loadTokens() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.tokens);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    Object.entries(parsed).forEach(([id, token]) => {
+      if (typeof token === "string") state.tokens.set(id, token);
+    });
+  } catch {}
+}
+
+function saveTokens() {
+  const data = {};
+  for (const [id, token] of state.tokens.entries()) data[id] = token;
+  localStorage.setItem(STORAGE_KEYS.tokens, JSON.stringify(data));
+}
+
+function loadActiveSession() {
+  try {
+    const id = localStorage.getItem(STORAGE_KEYS.activeSession);
+    if (id) state.activeId = id;
+  } catch {}
+}
+
+function saveActiveSession(id) {
+  if (!id) {
+    localStorage.removeItem(STORAGE_KEYS.activeSession);
+    return;
+  }
+  localStorage.setItem(STORAGE_KEYS.activeSession, id);
+}
+
+async function api(path, options = {}) {
+  const opts = { ...options };
+  opts.headers = opts.headers || {};
+
+  if (opts.body && !opts.headers["Content-Type"]) {
+    opts.headers["Content-Type"] = "application/json";
+  }
+
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    const message = await res.text();
+    throw new Error(message || "Request failed");
+  }
+  return res.json();
+}
+
+async function loadSessions() {
+  const data = await api("/api/sessions");
+  state.sessions = data.sessions || [];
+  renderSessions();
+  if (state.activeId) {
+    const exists = state.sessions.some((session) => session.id === state.activeId);
+    if (!exists) state.activeId = null;
+  }
+  if (!state.activeId && state.sessions.length > 0) {
+    const candidate = state.sessions.find((session) => state.tokens.has(session.id));
+    if (candidate) setActiveSession(candidate.id);
+  } else {
+    updateSessionMeta();
+    updateActionButtons();
+  }
+}
+
+function renderSessions() {
+  sessionList.innerHTML = "";
+  if (state.sessions.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "session-card";
+    empty.textContent = "No sessions yet";
+    sessionList.appendChild(empty);
+    return;
+  }
+
+  state.sessions.forEach((session) => {
+    const card = document.createElement("div");
+    card.className = "session-card";
+    if (session.id === state.activeId) card.classList.add("active");
+
+    const title = document.createElement("h4");
+    title.textContent = session.id;
+
+    const meta = document.createElement("div");
+    meta.className = "session-meta";
+    meta.textContent = `${session.status} · ${session.model || "default"}`;
+
+    const time = document.createElement("div");
+    time.className = "session-meta";
+    time.textContent = `started ${formatTime(session.createdAt)}`;
+
+    card.appendChild(title);
+    card.appendChild(meta);
+    card.appendChild(time);
+
+    card.addEventListener("click", () => setActiveSession(session.id));
+    sessionList.appendChild(card);
+  });
+}
+
+function setActiveSession(sessionId) {
+  if (state.activeId === sessionId) return;
+  state.activeId = sessionId;
+  saveActiveSession(sessionId);
+  clearMessages();
+  resetPermissions();
+  renderSessions();
+  openStream(sessionId);
+  updateSessionMeta();
+  updateActionButtons();
+}
+
+function updateSessionMeta(statusOverride) {
+  const session = state.sessions.find((item) => item.id === state.activeId);
+  if (!session) {
+    sessionMeta.textContent = "No active session";
+    return;
+  }
+  const status = statusOverride || session.status;
+  sessionMeta.textContent = `${session.id} · ${status} · ${session.model || "default"}`;
+}
+
+function updateActionButtons() {
+  const enabled = Boolean(state.activeId);
+  interruptBtn.disabled = !enabled;
+  closeSessionBtn.disabled = !enabled;
+  promptInput.disabled = !enabled;
+}
+
+function clearMessages() {
+  messagesEl.innerHTML = "";
+}
+
+function resetPermissions() {
+  state.permissionQueue = [];
+  state.currentPermission = null;
+  permissionModal.classList.add("hidden");
+}
+
+function appendMessage(role, text) {
+  const bubble = document.createElement("div");
+  bubble.className = `message ${role}`;
+  bubble.textContent = text;
+  messagesEl.appendChild(bubble);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function appendSystem(text) {
+  const bubble = document.createElement("div");
+  bubble.className = "message system";
+  bubble.textContent = text;
+  messagesEl.appendChild(bubble);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function closeStream() {
+  if (state.source) {
+    state.source.close();
+    state.source = null;
+  }
+}
+
+function openStream(sessionId) {
+  closeStream();
+  const token = state.tokens.get(sessionId);
+  if (!token) {
+    appendSystem("Session token missing. Create a new session to reconnect.");
+    return;
+  }
+
+  const url = `/api/sessions/${sessionId}/stream?token=${encodeURIComponent(token)}`;
+  const source = new EventSource(url);
+  state.source = source;
+
+  source.addEventListener("assistant_text", (event) => {
+    const payload = JSON.parse(event.data);
+    appendMessage("assistant", payload.data.text);
+  });
+
+  source.addEventListener("user_message", (event) => {
+    const payload = JSON.parse(event.data);
+    const clientMessageId = payload.data.clientMessageId;
+    if (clientMessageId && state.pendingClientMessages.has(clientMessageId)) {
+      state.pendingClientMessages.delete(clientMessageId);
+      return;
+    }
+    appendMessage("user", payload.data.text);
+  });
+
+  source.addEventListener("permission_request", (event) => {
+    const payload = JSON.parse(event.data);
+    enqueuePermission(payload.data);
+  });
+
+  source.addEventListener("session_status", (event) => {
+    const payload = JSON.parse(event.data);
+    const session = state.sessions.find((item) => item.id === state.activeId);
+    if (session) {
+      session.status = payload.data.status || session.status;
+    }
+    updateSessionMeta(payload.data.status);
+    if (payload.data.status === "exited" || payload.data.status === "closed") {
+      appendSystem("Session ended.");
+    }
+  });
+
+  source.addEventListener("error", () => {
+    appendSystem("Connection lost. Refresh or reopen the session.");
+  });
+}
+
+function enqueuePermission(request) {
+  state.permissionQueue.push(request);
+  if (!state.currentPermission) {
+    showNextPermission();
+  }
+}
+
+function showNextPermission() {
+  if (state.permissionQueue.length === 0) {
+    state.currentPermission = null;
+    permissionModal.classList.add("hidden");
+    return;
+  }
+
+  state.currentPermission = state.permissionQueue.shift();
+  permissionTool.textContent = state.currentPermission.toolName || "Tool";
+  permissionInput.textContent = JSON.stringify(state.currentPermission.input || {}, null, 2);
+  permissionModal.classList.remove("hidden");
+}
+
+async function respondPermission(decision) {
+  const current = state.currentPermission;
+  if (!current || !state.activeId) return;
+
+  const token = state.tokens.get(state.activeId);
+  if (!token) return;
+
+  await api(`/api/sessions/${state.activeId}/permissions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      requestId: current.requestId,
+      decision,
+    }),
+  });
+
+  state.currentPermission = null;
+  showNextPermission();
+}
+
+async function createSession() {
+  const model = modelInput.value.trim();
+  const data = await api("/api/sessions", {
+    method: "POST",
+    body: JSON.stringify({ model }),
+  });
+
+  state.tokens.set(data.id, data.token);
+  saveTokens();
+  await loadSessions();
+  setActiveSession(data.id);
+}
+
+async function sendMessage(text) {
+  if (!state.activeId) return;
+  const token = state.tokens.get(state.activeId);
+  if (!token) return;
+
+  const clientMessageId = `${state.activeId}-${Date.now()}`;
+  state.pendingClientMessages.add(clientMessageId);
+  appendMessage("user", text);
+
+  await api(`/api/sessions/${state.activeId}/send`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ text, clientMessageId }),
+  });
+}
+
+async function interruptSession() {
+  if (!state.activeId) return;
+  const token = state.tokens.get(state.activeId);
+  if (!token) return;
+
+  await api(`/api/sessions/${state.activeId}/interrupt`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+async function closeSession() {
+  if (!state.activeId) return;
+  const token = state.tokens.get(state.activeId);
+  if (!token) return;
+
+  await api(`/api/sessions/${state.activeId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  state.tokens.delete(state.activeId);
+  saveTokens();
+  state.activeId = null;
+  saveActiveSession(null);
+  closeStream();
+  clearMessages();
+  resetPermissions();
+  await loadSessions();
+  updateSessionMeta();
+  updateActionButtons();
+}
+
+newSessionBtn.addEventListener("click", () => {
+  createSession().catch((err) => appendSystem(err.message));
+});
+
+composer.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = promptInput.value.trim();
+  if (!text) return;
+  promptInput.value = "";
+  sendMessage(text).catch((err) => appendSystem(err.message));
+});
+
+interruptBtn.addEventListener("click", () => {
+  interruptSession().catch((err) => appendSystem(err.message));
+});
+
+closeSessionBtn.addEventListener("click", () => {
+  closeSession().catch((err) => appendSystem(err.message));
+});
+
+allowToolBtn.addEventListener("click", () => {
+  respondPermission("allow").catch((err) => appendSystem(err.message));
+});
+
+denyToolBtn.addEventListener("click", () => {
+  respondPermission("deny").catch((err) => appendSystem(err.message));
+});
+
+loadTokens();
+loadActiveSession();
+loadSessions().catch((err) => appendSystem(err.message));
+updateActionButtons();

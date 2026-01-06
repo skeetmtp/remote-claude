@@ -21,6 +21,11 @@ Open:
 http://127.0.0.1:3333
 ```
 
+## Project layout
+
+- `server/` — Express server, Claude process manager, session routing, and SSE endpoints.
+- `public/` — Static web UI (HTML/CSS/JS) served by the server.
+
 ## Configuration
 
 - `HOST` (default: `127.0.0.1`)
@@ -49,3 +54,7 @@ HOST=127.0.0.1 PORT=3333 CLAUDE_BIN=/path/to/claude npm start
 - `POST /api/sessions/:id/interrupt` -> interrupt Claude
 - `POST /api/sessions/:id/permissions` -> allow/deny tool usage
 - `DELETE /api/sessions/:id` -> close session
+
+## Test
+
+"Prompt me with yes or no choice using multiple choice input"

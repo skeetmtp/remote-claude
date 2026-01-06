@@ -1,0 +1,414 @@
+:root {
+  --bg-0: #0b1d22;
+  --bg-1: #0f2a33;
+  --panel: rgba(17, 30, 36, 0.9);
+  --panel-2: rgba(12, 22, 26, 0.85);
+  --stroke: rgba(255, 255, 255, 0.08);
+  --text: #f2f5f7;
+  --muted: #9bb2b8;
+  --accent: #f3b33a;
+  --accent-2: #2dd4bf;
+  --danger: #ef4444;
+  --shadow: 0 20px 60px rgba(3, 11, 13, 0.45);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Space Grotesk", "Avenir Next", "Trebuchet MS", sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at 15% 20%, #1b3a42 0%, #0b1d22 45%, #071417 100%);
+  min-height: 100vh;
+}
+
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.bg-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(0px);
+  opacity: 0.6;
+  animation: float 10s ease-in-out infinite;
+}
+
+.orb-1 {
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.25), rgba(45, 212, 191, 0));
+  top: -120px;
+  left: -80px;
+}
+
+.orb-2 {
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle, rgba(243, 179, 58, 0.28), rgba(243, 179, 58, 0));
+  bottom: -160px;
+  right: -140px;
+  animation-delay: 1.2s;
+}
+
+.bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 120px 120px;
+  opacity: 0.5;
+  mix-blend-mode: soft-light;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+  gap: 24px;
+  padding: 24px;
+}
+
+.sidebar {
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: rise 0.6s ease-out;
+}
+
+.brand-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.brand-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.controls {
+  display: grid;
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.field input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: "IBM Plex Mono", "Courier New", monospace;
+}
+
+.section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+
+.session-list {
+  display: grid;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 55vh;
+  padding-right: 4px;
+}
+
+.session-card {
+  border: 1px solid transparent;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(12, 22, 26, 0.8);
+  cursor: pointer;
+  transition: border 0.2s ease, transform 0.2s ease;
+}
+
+.session-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(243, 179, 58, 0.4);
+}
+
+.session-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(243, 179, 58, 0.2);
+}
+
+.session-card h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.session-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.chat {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 16px;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  padding: 18px 22px;
+  box-shadow: var(--shadow);
+  animation: rise 0.7s ease-out;
+}
+
+.chat-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.chat-meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.chat-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.messages {
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+  min-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message {
+  padding: 14px 16px;
+  border-radius: 16px;
+  max-width: 75%;
+  line-height: 1.5;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: rgba(243, 179, 58, 0.2);
+  border: 1px solid rgba(243, 179, 58, 0.35);
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background: rgba(45, 212, 191, 0.15);
+  border: 1px solid rgba(45, 212, 191, 0.3);
+}
+
+.message.system {
+  align-self: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.composer {
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+}
+
+.composer textarea {
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 12px;
+  resize: vertical;
+  font-family: "IBM Plex Mono", "Courier New", monospace;
+}
+
+.btn {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  transition: transform 0.2s ease, border 0.2s ease, background 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent) 0%, #ffcf6e 100%);
+  color: #1b1f23;
+}
+
+.btn.ghost {
+  background: transparent;
+  border: 1px solid var(--stroke);
+}
+
+.btn.danger {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 12, 14, 0.75);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-card {
+  width: min(520px, 90vw);
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.modal-subtitle {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.modal-body {
+  background: rgba(12, 22, 26, 0.7);
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid var(--stroke);
+  margin-bottom: 16px;
+}
+
+.modal-body pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 12px;
+  font-family: "IBM Plex Mono", "Courier New", monospace;
+  color: var(--text);
+}
+
+.label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.modal-footnote {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(12px);
+  }
+}
+
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-actions {
+    flex-direction: column;
+  }
+
+  .messages {
+    min-height: 40vh;
+  }
+}

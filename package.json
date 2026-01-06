@@ -1,0 +1,15 @@
+{
+  "name": "remote-claude",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Web UI for Claude Code via stream-json stdio",
+  "main": "server/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
