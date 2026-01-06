@@ -116,7 +116,17 @@ async function loadSessions() {
   renderSessions();
   if (state.activeId) {
     const exists = state.sessions.some((session) => session.id === state.activeId);
-    if (!exists) state.activeId = null;
+    if (!exists) {
+      state.activeId = null;
+    } else {
+      // Active session exists - open the stream if not already open
+      if (!state.source) {
+        openStream(state.activeId);
+        updateSessionMeta();
+        updateActionButtons();
+      }
+      return;
+    }
   }
   if (!state.activeId && state.sessions.length > 0) {
     const candidate = state.sessions.find((session) => state.tokens.has(session.id));
@@ -318,6 +328,9 @@ function renderToolPermission(permission) {
     document.querySelector(".modal-title").textContent = "Tool permission requested";
     document.querySelector(".modal-footnote").textContent = "Default is deny unless you approve.";
   }
+
+  // Render permission suggestions if available
+  renderPermissionSuggestions(permission);
 }
 
 function renderFileOperation(permission) {
@@ -452,6 +465,60 @@ function renderFileOperation(permission) {
   }
 }
 
+function renderPermissionSuggestions(permission) {
+  const suggestions = permission.suggestions || [];
+  if (suggestions.length === 0) return;
+
+  // Get or create suggestions container
+  let suggestionsContainer = document.getElementById("permission-suggestions");
+  if (!suggestionsContainer) {
+    suggestionsContainer = document.createElement("div");
+    suggestionsContainer.id = "permission-suggestions";
+    suggestionsContainer.className = "permission-suggestions";
+
+    // Insert before modal-actions
+    const modalActions = document.getElementById("modal-actions");
+    modalActions.parentNode.insertBefore(suggestionsContainer, modalActions);
+  }
+
+  suggestionsContainer.innerHTML = "";
+  suggestionsContainer.style.display = "block";
+
+  const label = document.createElement("div");
+  label.className = "label";
+  label.textContent = "Quick Actions";
+  label.style.marginBottom = "10px";
+  suggestionsContainer.appendChild(label);
+
+  const buttonsContainer = document.createElement("div");
+  buttonsContainer.className = "suggestion-buttons";
+
+  suggestions.forEach((suggestion, index) => {
+    const btn = document.createElement("button");
+    btn.className = "btn suggestion-btn";
+    btn.dataset.suggestionIndex = index;
+
+    // Format the suggestion text
+    let text = "";
+    if (suggestion.type === "addRules" && suggestion.rules && suggestion.rules.length > 0) {
+      const rule = suggestion.rules[0];
+      const behavior = suggestion.behavior === "allow" ? "Always allow" : "Always deny";
+      text = `${behavior}: ${rule.toolName} ${rule.ruleContent}`;
+    } else {
+      text = `Apply rule ${index + 1}`;
+    }
+
+    btn.textContent = text;
+    btn.addEventListener("click", () => {
+      respondPermissionWithSuggestion(suggestion);
+    });
+
+    buttonsContainer.appendChild(btn);
+  });
+
+  suggestionsContainer.appendChild(buttonsContainer);
+}
+
 function renderQuestionPrompt(permission) {
   const questions = permission.input?.questions || [];
   const questionBody = document.getElementById("question-body");
@@ -463,6 +530,12 @@ function renderQuestionPrompt(permission) {
   // Hide default permission UI
   document.getElementById("permission-body").style.display = "none";
   document.getElementById("modal-actions").style.display = "none";
+
+  // Hide permission suggestions for questions
+  const suggestionsContainer = document.getElementById("permission-suggestions");
+  if (suggestionsContainer) {
+    suggestionsContainer.style.display = "none";
+  }
 
   // Show question UI
   questionBody.style.display = "block";
@@ -577,6 +650,29 @@ async function respondPermission(decision) {
     body: JSON.stringify({
       requestId: current.requestId,
       decision,
+    }),
+  });
+
+  state.currentPermission = null;
+  showNextPermission();
+}
+
+async function respondPermissionWithSuggestion(suggestion) {
+  const current = state.currentPermission;
+  if (!current || !state.activeId) return;
+
+  const token = state.tokens.get(state.activeId);
+  if (!token) return;
+
+  await api(`/api/sessions/${state.activeId}/permissions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      requestId: current.requestId,
+      decision: "allow",
+      suggestion: suggestion,
     }),
   });
 

@@ -547,6 +547,36 @@ body {
   line-height: 1.4;
 }
 
+/* Permission suggestions styles */
+.permission-suggestions {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(45, 212, 191, 0.08);
+  border: 1px solid rgba(45, 212, 191, 0.2);
+  border-radius: 12px;
+}
+
+.suggestion-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestion-btn {
+  background: rgba(45, 212, 191, 0.15);
+  border: 1px solid rgba(45, 212, 191, 0.35);
+  color: var(--accent-2);
+  text-align: left;
+  font-size: 13px;
+  font-family: "IBM Plex Mono", "Courier New", monospace;
+  padding: 10px 14px;
+}
+
+.suggestion-btn:hover:not(:disabled) {
+  background: rgba(45, 212, 191, 0.25);
+  border-color: rgba(45, 212, 191, 0.5);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

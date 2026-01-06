@@ -52,6 +52,19 @@ Log categories include:
 - `PERMISSION` - Tool permission requests/responses
 - `HTTP` - All incoming requests
 
+### Unsupported Control Request Logging
+
+When Claude sends a control request that isn't yet supported, a dedicated log file is created:
+- `logs/unsupported-control-*.log`
+
+This log contains:
+- Full JSON structure of the unsupported request
+- Session context (status, model, recent messages)
+- Step-by-step implementation guide
+- All information needed to add support for the new control request
+
+**See `UNSUPPORTED_CONTROL.md` for complete documentation on how to implement support for new control request types.**
+
 Logs are useful for debugging and understanding Claude's message format for implementing new UI features. See `FORMAT.md` for the complete protocol specification.
 
 ## Notes

@@ -31,6 +31,15 @@ Environment variables:
 
 Server logs all activity to both console and file (`logs/server-<timestamp>.log`). Every stdin/stdout message to/from the Claude process is logged with full JSON payloads for debugging and UI development.
 
+### Unsupported Control Request Logging
+
+When Claude CLI sends an unsupported control request, the server automatically creates a dedicated log file (`logs/unsupported-control-<timestamp>.log`) with:
+- Full JSON structure of the request
+- Session context
+- Step-by-step implementation guide
+
+This makes it easy to add support for new control request types. See `UNSUPPORTED_CONTROL.md` for details.
+
 ## Architecture
 
 ### Server (`server/index.js`)

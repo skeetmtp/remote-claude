@@ -84,6 +84,35 @@ Respond to Claude's control requests (e.g., tool permissions):
 }
 ```
 
+**Example - Allow with permission suggestion (e.g., "Always allow"):**
+```json
+{
+  "type": "control_response",
+  "response": {
+    "subtype": "success",
+    "request_id": "matching-request-id",
+    "response": {
+      "behavior": "allow",
+      "updatedInput": {
+        "command": "git show --stat abc123"
+      },
+      "toolUseID": "tool-use-id-from-request",
+      "applyPermissionSuggestion": {
+        "type": "addRules",
+        "rules": [
+          {
+            "toolName": "Bash",
+            "ruleContent": "git show:*"
+          }
+        ],
+        "behavior": "allow",
+        "destination": "localSettings"
+      }
+    }
+  }
+}
+```
+
 **Example - Deny a tool:**
 ```json
 {
@@ -105,6 +134,7 @@ Respond to Claude's control requests (e.g., tool permissions):
 - `message`: Optional string (used for deny reason, only for deny behavior)
 - `updatedInput`: Required when behavior is "allow" - contains the tool input (potentially modified). For `AskUserQuestion`, this contains the user's answers (see below)
 - `toolUseID`: Must match the `tool_use_id` from the control request
+- `applyPermissionSuggestion`: Optional object (when user selects a permission suggestion like "Always allow", include the full suggestion object from the request)
 
 **Special case - AskUserQuestion:**
 
@@ -208,8 +238,15 @@ Claude requesting permission to use a tool:
       },
       "permission_suggestions": [
         {
+          "type": "addRules",
+          "rules": [
+            {
+              "toolName": "Bash",
+              "ruleContent": "git show:*"
+            }
+          ],
           "behavior": "allow",
-          "message": "Safe to run"
+          "destination": "localSettings"
         }
       ],
       "tool_use_id": "toolu_xyz"
@@ -222,8 +259,14 @@ Claude requesting permission to use a tool:
 - `subtype`: `"can_use_tool"`
 - `tool_name`: Name of the tool (e.g., `"Bash"`, `"Read"`, `"AskUserQuestion"`)
 - `input`: Tool-specific parameters
-- `permission_suggestions`: Optional hints for UI
+- `permission_suggestions`: Optional array of permission rule suggestions (e.g., "Always allow git show:*") that can be applied to Claude's permission settings
 - `tool_use_id`: Unique ID for this tool invocation
+
+**Permission suggestion structure:**
+- `type`: Currently only `"addRules"` is supported
+- `rules`: Array of rule objects with `toolName` and `ruleContent` (pattern)
+- `behavior`: `"allow"` or `"deny"`
+- `destination`: Where to save the rule (e.g., `"localSettings"`)
 
 **AskUserQuestion format:**
 

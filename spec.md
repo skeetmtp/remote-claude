@@ -174,8 +174,10 @@ Allow/deny a tool request.
 Request:
 
 ```json
-{ "requestId": "...", "decision": "allow" | "deny", "message": "optional" }
+{ "requestId": "...", "decision": "allow" | "deny", "message": "optional", "suggestion": {} }
 ```
+
+- `suggestion` (optional): When the user selects a permission suggestion (e.g., "Always allow git show:*"), this field contains the full suggestion object from the permission request. If provided, the suggestion will be applied to Claude's permission settings.
 
 Response:
 

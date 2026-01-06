@@ -14,6 +14,8 @@ const qrcode = require("qrcode-terminal");
 // Logger utility
 let logStream = null;
 
+let unsupportedControlStream = null;
+
 function initLogger() {
   const logsDir = path.join(__dirname, "..", "logs");
   if (!fs.existsSync(logsDir)) {
@@ -22,10 +24,13 @@ function initLogger() {
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const logFile = path.join(logsDir, `server-${timestamp}.log`);
+  const unsupportedControlFile = path.join(logsDir, `unsupported-control-${timestamp}.log`);
 
   logStream = fs.createWriteStream(logFile, { flags: "a" });
+  unsupportedControlStream = fs.createWriteStream(unsupportedControlFile, { flags: "a" });
 
   console.log(`Logging to: ${logFile}`);
+  console.log(`Unsupported control requests logging to: ${unsupportedControlFile}`);
   return logFile;
 }
 
@@ -52,6 +57,53 @@ function closeLogger() {
   if (logStream) {
     logStream.end();
     logStream = null;
+  }
+  if (unsupportedControlStream) {
+    unsupportedControlStream.end();
+    unsupportedControlStream = null;
+  }
+}
+
+function logUnsupportedControl(sessionId, fullMessage, context = {}) {
+  const timestamp = new Date().toISOString();
+  const separator = "=".repeat(80);
+
+  const logEntry = `
+${separator}
+TIMESTAMP: ${timestamp}
+SESSION_ID: ${sessionId}
+${separator}
+
+CONTEXT:
+${JSON.stringify(context, null, 2)}
+
+${separator}
+FULL RAW MESSAGE (copy this for implementing support):
+${JSON.stringify(fullMessage, null, 2)}
+
+${separator}
+IMPLEMENTATION GUIDE:
+1. Add a new case in the handleControlRequest method for subtype: "${fullMessage.request?.subtype}"
+2. Extract required fields from the request object
+3. Create appropriate UI rendering in the client
+4. Send back a control_response with the expected response structure
+5. Test with the exact message structure shown above
+
+REQUEST STRUCTURE ANALYSIS:
+- Request ID: ${fullMessage.request_id}
+- Request Subtype: ${fullMessage.request?.subtype}
+- Request Fields: ${Object.keys(fullMessage.request || {}).join(", ")}
+
+${separator}
+
+`;
+
+  console.log(`\n⚠️  UNSUPPORTED CONTROL REQUEST DETECTED - Session ${sessionId}`);
+  console.log(`   Subtype: ${fullMessage.request?.subtype}`);
+  console.log(`   Details logged to unsupported-control-*.log file\n`);
+
+  if (unsupportedControlStream) {
+    unsupportedControlStream.write(logEntry);
   }
 }
 
@@ -398,6 +450,21 @@ function createServer(options = {}) {
         subtype: request.subtype
       });
 
+      // Log to dedicated unsupported control requests file with full details
+      logUnsupportedControl(this.id, msg, {
+        sessionStatus: this.status,
+        model: this.model,
+        pendingPermissions: this.pendingPermissions.size,
+        messageHistorySize: this.messageHistory.length,
+        lastMessages: this.messageHistory.slice(-3).map(m => ({
+          type: m.type,
+          timestamp: m.timestamp,
+          // Include just the structure, not full content
+          hasContent: !!m.message?.content,
+          role: m.message?.role
+        }))
+      });
+
       this.send({
         type: "control_response",
         response: {
@@ -408,7 +475,7 @@ function createServer(options = {}) {
       });
     }
 
-    respondToPermission(requestId, decision, message) {
+    respondToPermission(requestId, decision, message, suggestion) {
       const entry = this.pendingPermissions.get(requestId);
       if (!entry) {
         log("PERMISSION", `Session ${this.id} permission request not found`, { requestId });
@@ -419,7 +486,8 @@ function createServer(options = {}) {
         requestId,
         decision,
         toolName: entry.toolName,
-        message
+        message,
+        suggestion
       });
 
       this.pendingPermissions.delete(requestId);
@@ -449,9 +517,14 @@ function createServer(options = {}) {
           // For other tools when allowing, use the original input as updatedInput
           response.updatedInput = entry.input;
         }
+
+        // Include permission suggestion if provided
+        if (suggestion) {
+          response.applyPermissionSuggestion = suggestion;
+        }
       } else {
-        // For deny, use message field
-        response.message = message || "";
+        // For deny, use message field (must be non-empty per API requirements)
+        response.message = message || "Permission denied by user";
       }
 
       this.send({
@@ -590,11 +663,13 @@ function createServer(options = {}) {
     const requestId = typeof req.body?.requestId === "string" ? req.body.requestId : "";
     const decision = typeof req.body?.decision === "string" ? req.body.decision : "";
     const message = typeof req.body?.message === "string" ? req.body.message : "";
+    const suggestion = req.body?.suggestion || null;
 
     log("API", `Permission response for session ${req.params.id}`, {
       requestId,
       decision,
-      message
+      message,
+      suggestion
     });
 
     if (!requestId) return res.status(400).json({ error: "requestId is required" });
@@ -603,7 +678,7 @@ function createServer(options = {}) {
     }
 
     try {
-      req.session.respondToPermission(requestId, decision, message);
+      req.session.respondToPermission(requestId, decision, message, suggestion);
       return res.json({ ok: true });
     } catch (err) {
       log("API", `Permission response error for session ${req.params.id}`, {
