@@ -1,10 +1,59 @@
 "use strict";
 
+// Load .env file if present
+require("dotenv").config();
+
 const path = require("node:path");
 const crypto = require("node:crypto");
+const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const readline = require("node:readline");
 const express = require("express");
+const qrcode = require("qrcode-terminal");
+
+// Logger utility
+let logStream = null;
+
+function initLogger() {
+  const logsDir = path.join(__dirname, "..", "logs");
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const logFile = path.join(logsDir, `server-${timestamp}.log`);
+
+  logStream = fs.createWriteStream(logFile, { flags: "a" });
+
+  console.log(`Logging to: ${logFile}`);
+  return logFile;
+}
+
+function log(category, message, data = null) {
+  const timestamp = new Date().toISOString();
+  const prefix = `[${timestamp}] [${category}]`;
+
+  let logLine;
+  if (data) {
+    const dataStr = JSON.stringify(data, null, 2);
+    logLine = `${prefix} ${message}\n${dataStr}\n`;
+    console.log(prefix, message, dataStr);
+  } else {
+    logLine = `${prefix} ${message}\n`;
+    console.log(prefix, message);
+  }
+
+  if (logStream) {
+    logStream.write(logLine);
+  }
+}
+
+function closeLogger() {
+  if (logStream) {
+    logStream.end();
+    logStream = null;
+  }
+}
 
 function createServer(options = {}) {
   const config = {
@@ -14,7 +63,14 @@ function createServer(options = {}) {
     defaultModel: options.defaultModel ?? process.env.CLAUDE_DEFAULT_MODEL ?? "",
     historyLimit: options.historyLimit ?? 200,
     spawnImpl: options.spawnImpl ?? spawn,
+    enableLogging: options.enableLogging ?? true,
   };
+
+  if (config.enableLogging && !logStream) {
+    initLogger();
+  }
+
+  log("SERVER", "Creating server with config", config);
 
   const app = express();
   app.disable("x-powered-by");
@@ -23,6 +79,11 @@ function createServer(options = {}) {
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
+    log("HTTP", `${req.method} ${req.path}`, {
+      query: req.query,
+      ip: req.ip,
+      origin: req.get("origin")
+    });
     next();
   });
 
@@ -40,6 +101,7 @@ function createServer(options = {}) {
 
   app.use((req, res, next) => {
     if (!allowOrigin(req)) {
+      log("SECURITY", "Forbidden origin rejected", { origin: req.get("origin") });
       return res.status(403).json({ error: "Forbidden origin" });
     }
     return next();
@@ -92,6 +154,7 @@ function createServer(options = {}) {
       this.heartbeat = null;
       this.process = null;
       this.readline = null;
+      log("SESSION", `Creating session ${this.id}`, { model: this.model });
       this.start();
     }
 
@@ -119,14 +182,21 @@ function createServer(options = {}) {
         args.push("--model", this.model);
       }
 
+      log("SESSION", `Starting Claude process for session ${this.id}`, {
+        command: config.claudeBin,
+        args: args
+      });
+
       this.process = config.spawnImpl(config.claudeBin, args, { stdio: ["pipe", "pipe", "pipe"] });
 
       this.process.on("error", (err) => {
+        log("CLAUDE_PROCESS", `Process error for session ${this.id}`, { error: err.message });
         this.status = "error";
         this.pushEvent("session_status", { status: this.status, error: err.message });
       });
 
       this.process.on("exit", (code, signal) => {
+        log("CLAUDE_PROCESS", `Process exited for session ${this.id}`, { code, signal });
         this.status = "exited";
         this.pushEvent("session_status", { status: this.status, code, signal });
         this.closeSubscribers();
@@ -134,19 +204,32 @@ function createServer(options = {}) {
 
       this.process.stderr.on("data", (buf) => {
         const message = buf.toString();
+        log("CLAUDE_STDERR", `Session ${this.id}`, { message });
         this.pushEvent("claude_stderr", { message }, false);
       });
 
       this.readline = readline.createInterface({ input: this.process.stdout });
       this.readline.on("line", (line) => {
         if (!line.trim()) return;
+
+        log("CLAUDE_STDOUT", `Session ${this.id} received`, { raw: line });
+
         let msg;
         try {
           msg = JSON.parse(line);
-        } catch {
+        } catch (parseError) {
+          log("CLAUDE_STDOUT", `JSON parse error for session ${this.id}`, {
+            error: parseError.message,
+            line
+          });
           this.pushEvent("error", { message: "Bad JSON from Claude", line }, false);
           return;
         }
+
+        log("CLAUDE_STDOUT", `Session ${this.id} parsed message`, {
+          type: msg.type,
+          message: msg
+        });
 
         if (msg.type === "control_request") {
           this.handleControlRequest(msg);
@@ -155,6 +238,7 @@ function createServer(options = {}) {
 
         const assistantText = extractAssistantText(msg);
         if (assistantText) {
+          log("CLAUDE_OUTPUT", `Session ${this.id} assistant text`, { text: assistantText });
           this.pushEvent("assistant_text", { text: assistantText });
         }
 
@@ -162,6 +246,7 @@ function createServer(options = {}) {
       });
 
       this.status = "running";
+      log("SESSION", `Session ${this.id} status changed to running`);
       this.pushEvent("session_status", { status: this.status });
     }
 
@@ -172,6 +257,12 @@ function createServer(options = {}) {
         data,
         timestamp: nowIso(),
       };
+
+      log("SSE", `Session ${this.id} pushing event ${type}`, {
+        keep,
+        subscribers: this.subscribers.size,
+        eventData: data
+      });
 
       if (keep) {
         this.history.push(event);
@@ -184,6 +275,11 @@ function createServer(options = {}) {
     }
 
     addSubscriber(res) {
+      log("SSE", `Session ${this.id} adding subscriber`, {
+        totalSubscribers: this.subscribers.size + 1,
+        historySize: this.history.length
+      });
+
       this.subscribers.add(res);
 
       for (const event of this.history) {
@@ -191,6 +287,7 @@ function createServer(options = {}) {
       }
 
       if (!this.heartbeat) {
+        log("SSE", `Session ${this.id} starting heartbeat`);
         this.heartbeat = setInterval(() => {
           for (const client of this.subscribers) {
             client.write(": ping\n\n");
@@ -201,7 +298,12 @@ function createServer(options = {}) {
 
     removeSubscriber(res) {
       this.subscribers.delete(res);
+      log("SSE", `Session ${this.id} removing subscriber`, {
+        remainingSubscribers: this.subscribers.size
+      });
+
       if (this.subscribers.size === 0 && this.heartbeat) {
+        log("SSE", `Session ${this.id} stopping heartbeat (no subscribers)`);
         clearInterval(this.heartbeat);
         this.heartbeat = null;
       }
@@ -220,12 +322,27 @@ function createServer(options = {}) {
 
     send(obj) {
       if (!this.process || !this.process.stdin) {
+        log("CLAUDE_STDIN", `Session ${this.id} cannot send - process not available`, { obj });
         throw new Error("Claude process is not available");
       }
-      this.process.stdin.write(JSON.stringify(obj) + "\n");
+
+      const jsonStr = JSON.stringify(obj);
+      log("CLAUDE_STDIN", `Session ${this.id} sending to Claude`, {
+        type: obj.type,
+        message: obj,
+        raw: jsonStr
+      });
+
+      this.process.stdin.write(jsonStr + "\n");
     }
 
     sendUser(text, clientMessageId) {
+      log("USER_MESSAGE", `Session ${this.id} user sent message`, {
+        text,
+        clientMessageId,
+        textLength: text.length
+      });
+
       this.send({
         type: "user",
         session_id: "",
@@ -240,6 +357,7 @@ function createServer(options = {}) {
     }
 
     interrupt() {
+      log("CONTROL", `Session ${this.id} interrupt requested`);
       this.send({
         type: "control_request",
         request_id: makeId(),
@@ -250,6 +368,12 @@ function createServer(options = {}) {
     handleControlRequest(msg) {
       const request = msg.request || {};
 
+      log("CONTROL", `Session ${this.id} control request received`, {
+        subtype: request.subtype,
+        requestId: msg.request_id,
+        fullRequest: msg
+      });
+
       if (request.subtype === "can_use_tool") {
         const entry = {
           requestId: msg.request_id,
@@ -258,10 +382,21 @@ function createServer(options = {}) {
           suggestions: request.permission_suggestions || [],
           toolUseId: request.tool_use_id || null,
         };
+
+        log("PERMISSION", `Session ${this.id} tool permission requested`, {
+          toolName: entry.toolName,
+          requestId: entry.requestId,
+          input: entry.input
+        });
+
         this.pendingPermissions.set(msg.request_id, entry);
         this.pushEvent("permission_request", entry);
         return;
       }
+
+      log("CONTROL", `Session ${this.id} unsupported control request`, {
+        subtype: request.subtype
+      });
 
       this.send({
         type: "control_response",
@@ -275,34 +410,74 @@ function createServer(options = {}) {
 
     respondToPermission(requestId, decision, message) {
       const entry = this.pendingPermissions.get(requestId);
-      if (!entry) throw new Error("Permission request not found");
+      if (!entry) {
+        log("PERMISSION", `Session ${this.id} permission request not found`, { requestId });
+        throw new Error("Permission request not found");
+      }
+
+      log("PERMISSION", `Session ${this.id} permission decision`, {
+        requestId,
+        decision,
+        toolName: entry.toolName,
+        message
+      });
 
       this.pendingPermissions.delete(requestId);
       const behavior = decision === "allow" ? "allow" : "deny";
+
+      // Build the response object
+      const response = {
+        behavior,
+        toolUseID: entry.toolUseId,
+      };
+
+      // For AskUserQuestion with allow, parse the message as updatedInput
+      if (behavior === "allow" && entry.toolName === "AskUserQuestion" && message) {
+        try {
+          response.updatedInput = JSON.parse(message);
+        } catch (parseError) {
+          log("PERMISSION", `Failed to parse AskUserQuestion answers`, {
+            error: parseError.message,
+            message
+          });
+          // Fall back to message field if parsing fails
+          response.message = message;
+        }
+      } else if (message) {
+        // For other tools or deny, use message field
+        response.message = message;
+      } else {
+        // No message provided
+        response.message = "";
+      }
 
       this.send({
         type: "control_response",
         response: {
           subtype: "success",
           request_id: requestId,
-          response: {
-            behavior,
-            message: message || "",
-            toolUseID: entry.toolUseId,
-          },
+          response,
         },
       });
     }
 
     close() {
+      log("SESSION", `Closing session ${this.id}`, {
+        status: this.status,
+        subscribers: this.subscribers.size,
+        pendingPermissions: this.pendingPermissions.size
+      });
+
       if (this.readline) {
         this.readline.close();
         this.readline = null;
       }
       if (this.process && !this.process.killed) {
+        log("CLAUDE_PROCESS", `Killing process for session ${this.id}`);
         this.process.kill("SIGTERM");
         setTimeout(() => {
           if (this.process && !this.process.killed) {
+            log("CLAUDE_PROCESS", `Force killing process for session ${this.id}`);
             this.process.kill("SIGKILL");
           }
         }, 4000);
@@ -323,9 +498,13 @@ function createServer(options = {}) {
 
   function requireSession(req, res, next) {
     const session = sessions.get(req.params.id);
-    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (!session) {
+      log("AUTH", `Session not found`, { sessionId: req.params.id });
+      return res.status(404).json({ error: "Session not found" });
+    }
     const token = getToken(req);
     if (!token || token !== session.token) {
+      log("AUTH", `Invalid token for session ${req.params.id}`);
       return res.status(401).json({ error: "Invalid session token" });
     }
     req.session = session;
@@ -334,11 +513,14 @@ function createServer(options = {}) {
 
   app.get("/api/sessions", (req, res) => {
     const list = Array.from(sessions.values()).map((session) => session.info());
+    log("API", `Listing sessions`, { count: list.length });
     res.json({ sessions: list });
   });
 
   app.post("/api/sessions", (req, res) => {
     const model = typeof req.body?.model === "string" ? req.body.model.trim() : "";
+    log("API", `Creating new session`, { requestedModel: model });
+
     const session = new ClaudeSession({
       id: makeId(),
       token: makeId(24),
@@ -346,6 +528,13 @@ function createServer(options = {}) {
     });
 
     sessions.set(session.id, session);
+
+    log("API", `Session created`, {
+      id: session.id,
+      model: session.model,
+      totalSessions: sessions.size
+    });
+
     res.json({
       id: session.id,
       token: session.token,
@@ -355,6 +544,8 @@ function createServer(options = {}) {
   });
 
   app.get("/api/sessions/:id/stream", requireSession, (req, res) => {
+    log("API", `Stream connection opened for session ${req.params.id}`);
+
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
@@ -365,19 +556,29 @@ function createServer(options = {}) {
     req.session.addSubscriber(res);
 
     req.on("close", () => {
+      log("API", `Stream connection closed for session ${req.params.id}`);
       req.session.removeSubscriber(res);
     });
   });
 
   app.post("/api/sessions/:id/send", requireSession, (req, res) => {
     const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
-    if (!text) return res.status(400).json({ error: "Text is required" });
+    if (!text) {
+      log("API", `Send message failed - empty text`, { sessionId: req.params.id });
+      return res.status(400).json({ error: "Text is required" });
+    }
+
+    log("API", `Sending user message to session ${req.params.id}`, {
+      textLength: text.length,
+      preview: text.substring(0, 100)
+    });
 
     req.session.sendUser(text, req.body?.clientMessageId || null);
     return res.json({ ok: true });
   });
 
   app.post("/api/sessions/:id/interrupt", requireSession, (req, res) => {
+    log("API", `Interrupt requested for session ${req.params.id}`);
     req.session.interrupt();
     res.json({ ok: true });
   });
@@ -386,6 +587,12 @@ function createServer(options = {}) {
     const requestId = typeof req.body?.requestId === "string" ? req.body.requestId : "";
     const decision = typeof req.body?.decision === "string" ? req.body.decision : "";
     const message = typeof req.body?.message === "string" ? req.body.message : "";
+
+    log("API", `Permission response for session ${req.params.id}`, {
+      requestId,
+      decision,
+      message
+    });
 
     if (!requestId) return res.status(400).json({ error: "requestId is required" });
     if (!decision || !["allow", "deny"].includes(decision)) {
@@ -396,39 +603,71 @@ function createServer(options = {}) {
       req.session.respondToPermission(requestId, decision, message);
       return res.json({ ok: true });
     } catch (err) {
+      log("API", `Permission response error for session ${req.params.id}`, {
+        error: err.message
+      });
       return res.status(404).json({ error: err.message || "Permission not found" });
     }
   });
 
   app.delete("/api/sessions/:id", requireSession, (req, res) => {
+    log("API", `Deleting session ${req.params.id}`);
     req.session.close();
     sessions.delete(req.session.id);
+    log("API", `Session ${req.params.id} deleted`, { remainingSessions: sessions.size });
     res.json({ ok: true });
   });
 
   function closeAllSessions() {
+    log("SERVER", `Closing all sessions`, { count: sessions.size });
     for (const session of sessions.values()) {
       session.close();
     }
     sessions.clear();
   }
 
+  function createInitialSession(model) {
+    const session = new ClaudeSession({
+      id: makeId(),
+      token: makeId(24),
+      model: model || config.defaultModel,
+    });
+    sessions.set(session.id, session);
+    return session;
+  }
+
   function listen() {
     return app.listen(config.port, config.host, () => {
+      log("SERVER", `Server started`, {
+        url: `http://${config.host}:${config.port}`,
+        claudeBin: config.claudeBin,
+        defaultModel: config.defaultModel || "(none)"
+      });
       console.log(`remote-claude running on http://${config.host}:${config.port}`);
       console.log(`Claude binary: ${config.claudeBin}`);
     });
   }
 
-  return { app, listen, closeAllSessions, sessions, config };
+  return { app, listen, closeAllSessions, sessions, config, createInitialSession, closeLogger };
 }
 
 if (require.main === module) {
-  const { listen, closeAllSessions } = createServer();
+  const { listen, closeAllSessions, createInitialSession, config } = createServer();
   const server = listen();
 
+  // Create an initial session and display QR code
+  const session = createInitialSession();
+  const publicHost = process.env.PUBLIC_HOST || config.host;
+  const sessionUrl = `http://${publicHost}:${config.port}/#session=${session.id}&token=${session.token}`;
+
+  console.log("\nScan the QR code to open this session on your phone:\n");
+  qrcode.generate(sessionUrl, { small: true });
+  console.log(`\nSession URL: ${sessionUrl}\n`);
+
   const shutdown = () => {
+    log("SERVER", "Shutting down server");
     closeAllSessions();
+    closeLogger();
     server.close(() => process.exit(0));
   };
 

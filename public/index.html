@@ -66,13 +66,17 @@
       <div class="modal-card">
         <div class="modal-title">Tool permission requested</div>
         <div id="permission-tool" class="modal-subtitle"></div>
-        <div class="modal-body">
+        <div id="permission-body" class="modal-body">
           <div class="label">Input</div>
           <pre id="permission-input"></pre>
         </div>
-        <div class="modal-actions">
+        <div id="question-body" class="modal-body" style="display: none;"></div>
+        <div id="modal-actions" class="modal-actions">
           <button id="deny-tool" class="btn danger">Deny</button>
           <button id="allow-tool" class="btn primary">Allow</button>
+        </div>
+        <div id="question-actions" class="modal-actions" style="display: none;">
+          <button id="submit-answers" class="btn primary">Submit</button>
         </div>
         <div class="modal-footnote">Default is deny unless you approve.</div>
       </div>

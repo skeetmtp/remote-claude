@@ -39,6 +39,20 @@ Example:
 HOST=127.0.0.1 PORT=3333 CLAUDE_BIN=/path/to/claude npm start
 ```
 
+## Logging
+
+All server activity is logged to both console and file. Logs are saved in the `logs/` directory with timestamped filenames (e.g., `server-2026-01-06T12-00-00-000Z.log`).
+
+Log categories include:
+- `CLAUDE_STDIN` / `CLAUDE_STDOUT` - Full stdin/stdout communication with Claude process
+- `CLAUDE_STDERR` - Claude process error output
+- `SESSION` - Session lifecycle events
+- `API` - HTTP API operations
+- `PERMISSION` - Tool permission requests/responses
+- `HTTP` - All incoming requests
+
+Logs are useful for debugging and understanding Claude's message format for implementing new UI features.
+
 ## Notes
 
 - Each session maps to a dedicated Claude CLI process.
@@ -55,6 +69,6 @@ HOST=127.0.0.1 PORT=3333 CLAUDE_BIN=/path/to/claude npm start
 - `POST /api/sessions/:id/permissions` -> allow/deny tool usage
 - `DELETE /api/sessions/:id` -> close session
 
-## Test
+## Test prompt
 
-"Prompt me with yes or no choice using multiple choice input"
+Prompt me with yes or no choice using multiple choice input

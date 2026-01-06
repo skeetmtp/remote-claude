@@ -60,6 +60,32 @@ function loadActiveSession() {
   } catch {}
 }
 
+function parseHashParams() {
+  const hash = window.location.hash.slice(1);
+  if (!hash) return null;
+  const params = new URLSearchParams(hash);
+  const sessionId = params.get("session");
+  const token = params.get("token");
+  if (sessionId && token) {
+    return { sessionId, token };
+  }
+  return null;
+}
+
+function applyHashParams() {
+  const params = parseHashParams();
+  if (!params) return false;
+
+  state.tokens.set(params.sessionId, params.token);
+  saveTokens();
+  state.activeId = params.sessionId;
+  saveActiveSession(params.sessionId);
+
+  // Clear the hash from URL for cleaner display
+  history.replaceState(null, "", window.location.pathname);
+  return true;
+}
+
 function saveActiveSession(id) {
   if (!id) {
     localStorage.removeItem(STORAGE_KEYS.activeSession);
@@ -262,9 +288,138 @@ function showNextPermission() {
   }
 
   state.currentPermission = state.permissionQueue.shift();
-  permissionTool.textContent = state.currentPermission.toolName || "Tool";
-  permissionInput.textContent = JSON.stringify(state.currentPermission.input || {}, null, 2);
+
+  // Check if this is an AskUserQuestion tool
+  if (state.currentPermission.toolName === "AskUserQuestion") {
+    renderQuestionPrompt(state.currentPermission);
+  } else {
+    renderToolPermission(state.currentPermission);
+  }
+
   permissionModal.classList.remove("hidden");
+}
+
+function renderToolPermission(permission) {
+  permissionTool.textContent = permission.toolName || "Tool";
+  permissionInput.textContent = JSON.stringify(permission.input || {}, null, 2);
+
+  // Show default allow/deny buttons
+  document.getElementById("permission-body").style.display = "block";
+  document.getElementById("question-body").style.display = "none";
+  document.getElementById("modal-actions").style.display = "flex";
+  document.getElementById("question-actions").style.display = "none";
+  document.querySelector(".modal-title").textContent = "Tool permission requested";
+  document.querySelector(".modal-footnote").textContent = "Default is deny unless you approve.";
+}
+
+function renderQuestionPrompt(permission) {
+  const questions = permission.input?.questions || [];
+  const questionBody = document.getElementById("question-body");
+
+  permissionTool.textContent = "";
+  document.querySelector(".modal-title").textContent = "Claude has a question";
+  document.querySelector(".modal-footnote").textContent = "";
+
+  // Hide default permission UI
+  document.getElementById("permission-body").style.display = "none";
+  document.getElementById("modal-actions").style.display = "none";
+
+  // Show question UI
+  questionBody.style.display = "block";
+  document.getElementById("question-actions").style.display = "flex";
+  questionBody.innerHTML = "";
+
+  questions.forEach((q, qIndex) => {
+    const questionContainer = document.createElement("div");
+    questionContainer.className = "question-container";
+
+    const questionTitle = document.createElement("div");
+    questionTitle.className = "question-title";
+    questionTitle.textContent = q.question;
+    questionContainer.appendChild(questionTitle);
+
+    const optionsContainer = document.createElement("div");
+    optionsContainer.className = "question-options";
+
+    q.options.forEach((option, optIndex) => {
+      const optionLabel = document.createElement("label");
+      optionLabel.className = "question-option";
+
+      const input = document.createElement("input");
+      input.type = q.multiSelect ? "checkbox" : "radio";
+      input.name = `question-${qIndex}`;
+      input.value = option.label;
+      input.dataset.questionIndex = qIndex;
+      input.dataset.optionLabel = option.label;
+
+      const labelContent = document.createElement("div");
+      labelContent.className = "option-content";
+
+      const labelText = document.createElement("div");
+      labelText.className = "option-label";
+      labelText.textContent = option.label;
+
+      const descText = document.createElement("div");
+      descText.className = "option-description";
+      descText.textContent = option.description;
+
+      labelContent.appendChild(labelText);
+      labelContent.appendChild(descText);
+
+      optionLabel.appendChild(input);
+      optionLabel.appendChild(labelContent);
+      optionsContainer.appendChild(optionLabel);
+    });
+
+    questionContainer.appendChild(optionsContainer);
+    questionBody.appendChild(questionContainer);
+  });
+}
+
+async function submitQuestionAnswers() {
+  const current = state.currentPermission;
+  if (!current || !state.activeId) return;
+
+  const questions = current.input?.questions || [];
+  const answers = {};
+
+  // Collect answers
+  questions.forEach((q, qIndex) => {
+    const inputs = document.querySelectorAll(`input[name="question-${qIndex}"]`);
+    const selectedValues = [];
+
+    inputs.forEach(input => {
+      if (input.checked) {
+        selectedValues.push(input.dataset.optionLabel);
+      }
+    });
+
+    // Store answer
+    if (q.multiSelect) {
+      answers[qIndex.toString()] = selectedValues;
+    } else {
+      answers[qIndex.toString()] = selectedValues.length > 0 ? selectedValues[0] : null;
+    }
+  });
+
+  const token = state.tokens.get(state.activeId);
+  if (!token) return;
+
+  // Send response with answers
+  await api(`/api/sessions/${state.activeId}/permissions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      requestId: current.requestId,
+      decision: "allow",
+      message: JSON.stringify({ answers }),
+    }),
+  });
+
+  state.currentPermission = null;
+  showNextPermission();
 }
 
 async function respondPermission(decision) {
@@ -385,7 +540,12 @@ denyToolBtn.addEventListener("click", () => {
   respondPermission("deny").catch((err) => appendSystem(err.message));
 });
 
+document.getElementById("submit-answers").addEventListener("click", () => {
+  submitQuestionAnswers().catch((err) => appendSystem(err.message));
+});
+
 loadTokens();
 loadActiveSession();
+applyHashParams(); // Apply session from URL hash if present
 loadSessions().catch((err) => appendSystem(err.message));
 updateActionButtons();

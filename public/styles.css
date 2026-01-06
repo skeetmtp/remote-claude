@@ -367,6 +367,80 @@ body {
   color: var(--muted);
 }
 
+/* Question UI styles */
+.question-container {
+  margin-bottom: 20px;
+}
+
+.question-container:last-child {
+  margin-bottom: 0;
+}
+
+.question-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.question-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: rgba(12, 22, 26, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.question-option:hover {
+  background: rgba(12, 22, 26, 0.8);
+  border-color: rgba(243, 179, 58, 0.4);
+  transform: translateY(-1px);
+}
+
+.question-option input[type="radio"],
+.question-option input[type="checkbox"] {
+  margin-top: 3px;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+
+.question-option input[type="radio"]:checked ~ .option-content,
+.question-option input[type="checkbox"]:checked ~ .option-content {
+  opacity: 1;
+}
+
+.option-content {
+  flex: 1;
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+.option-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.option-description {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
