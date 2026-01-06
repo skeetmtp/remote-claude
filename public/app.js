@@ -219,6 +219,35 @@ function appendMessage(role, text) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+let historyScrollTimeout = null;
+
+function appendHistoryMessage(role, text, timestamp) {
+  const bubble = document.createElement("div");
+  bubble.className = `message ${role} history`;
+
+  const content = document.createElement("div");
+  content.className = "history-content";
+  content.textContent = text;
+  bubble.appendChild(content);
+
+  if (timestamp) {
+    const time = document.createElement("div");
+    time.className = "history-timestamp";
+    time.textContent = formatTime(timestamp);
+    bubble.appendChild(time);
+  }
+
+  messagesEl.appendChild(bubble);
+
+  // Debounce scroll - only scroll once after all history messages loaded
+  clearTimeout(historyScrollTimeout);
+  historyScrollTimeout = setTimeout(() => {
+    requestAnimationFrame(() => {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+  }, 100);
+}
+
 function appendSystem(text) {
   const bubble = document.createElement("div");
   bubble.className = "message system";
@@ -245,6 +274,18 @@ function openStream(sessionId) {
   const url = `/api/sessions/${sessionId}/stream?token=${encodeURIComponent(token)}`;
   const source = new EventSource(url);
   state.source = source;
+
+  source.addEventListener("history_message", (event) => {
+    const payload = JSON.parse(event.data);
+    appendHistoryMessage(payload.data.role, payload.data.text, payload.data.timestamp);
+  });
+
+  // Scroll to bottom after stream opens (catches case where history is loaded)
+  source.addEventListener("open", () => {
+    setTimeout(() => {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }, 200);
+  });
 
   source.addEventListener("assistant_text", (event) => {
     const payload = JSON.parse(event.data);

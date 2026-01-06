@@ -10,6 +10,7 @@
     "test": "node --test"
   },
   "dependencies": {
+    "@inquirer/select": "^5.0.3",
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "qrcode-terminal": "^0.12.0"

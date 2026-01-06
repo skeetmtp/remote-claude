@@ -15,15 +15,40 @@ npm install
 npm start
 ```
 
+On startup, you'll see a session picker if previous sessions exist:
+
+```
+? Select a session to resume:
+> [New Session] Start fresh
+  [2 min ago] Git branch creation & permission review
+  [15 min ago] Implement permission handling
+  [1 hour ago] Add QR code display
+```
+
+Select a previous session to resume it with full history, or choose "New Session" to start fresh.
+
 Open:
 
 ```text
 http://127.0.0.1:3333
 ```
 
+## Session Resume
+
+The server discovers previous Claude sessions from `~/.claude/projects/` and allows you to resume them:
+
+- Sessions are listed by modification time (most recent first)
+- Selecting a session passes `--resume <session-id>` to Claude CLI
+- Message history is loaded from the JSONL file and displayed in the chat UI
+- History messages appear with a dimmed style and timestamp
+
+If no previous sessions exist or stdin is not a TTY (e.g., piped input), a new session is created automatically.
+
 ## Project layout
 
-- `server/` — Express server, Claude process manager, session routing, and SSE endpoints.
+- `server/index.js` — Express server, Claude process manager, session routing, and SSE endpoints.
+- `server/session-discovery.js` — Discovers and parses local Claude session files.
+- `server/session-picker.js` — CLI interactive picker for session selection.
 - `public/` — Static web UI (HTML/CSS/JS) served by the server.
 - `FORMAT.md` — Complete specification of the Claude CLI stream-json protocol.
 

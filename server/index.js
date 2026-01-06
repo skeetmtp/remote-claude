@@ -193,10 +193,12 @@ function createServer(options = {}) {
   }
 
   class ClaudeSession {
-    constructor({ id, token, model }) {
+    constructor({ id, token, model, resumeSessionId }) {
       this.id = id;
       this.token = token;
       this.model = model;
+      this.resumeSessionId = resumeSessionId || null;
+      this.historicalMessages = []; // Pre-loaded history from resumed session
       this.createdAt = nowIso();
       this.status = "starting";
       this.history = [];
@@ -206,7 +208,7 @@ function createServer(options = {}) {
       this.heartbeat = null;
       this.process = null;
       this.readline = null;
-      log("SESSION", `Creating session ${this.id}`, { model: this.model });
+      log("SESSION", `Creating session ${this.id}`, { model: this.model, resumeSessionId: this.resumeSessionId });
       this.start();
     }
 
@@ -229,6 +231,11 @@ function createServer(options = {}) {
         "--permission-prompt-tool",
         "stdio",
       ];
+
+      // Add resume flag if resuming a previous session
+      if (this.resumeSessionId) {
+        args.unshift("--resume", this.resumeSessionId);
+      }
 
       if (this.model) {
         args.push("--model", this.model);
@@ -329,11 +336,28 @@ function createServer(options = {}) {
     addSubscriber(res) {
       log("SSE", `Session ${this.id} adding subscriber`, {
         totalSubscribers: this.subscribers.size + 1,
-        historySize: this.history.length
+        historySize: this.history.length,
+        historicalMessagesSize: this.historicalMessages.length
       });
 
       this.subscribers.add(res);
 
+      // Send historical messages from resumed session first
+      for (const msg of this.historicalMessages) {
+        const event = {
+          id: `${this.id}:history:${this.historicalMessages.indexOf(msg)}`,
+          type: "history_message",
+          data: {
+            role: msg.role,
+            text: msg.text,
+            timestamp: msg.timestamp,
+          },
+          timestamp: msg.timestamp,
+        };
+        sendSse(res, "history_message", event);
+      }
+
+      // Then send the current session history
       for (const event of this.history) {
         sendSse(res, event.type, event);
       }
@@ -714,6 +738,18 @@ function createServer(options = {}) {
     return session;
   }
 
+  function createResumedSession(resumeSessionId, history, model) {
+    const session = new ClaudeSession({
+      id: makeId(),
+      token: makeId(24),
+      model: model || config.defaultModel,
+      resumeSessionId: resumeSessionId,
+    });
+    session.historicalMessages = history || [];
+    sessions.set(session.id, session);
+    return session;
+  }
+
   function listen() {
     return app.listen(config.port, config.host, () => {
       log("SERVER", `Server started`, {
@@ -726,31 +762,72 @@ function createServer(options = {}) {
     });
   }
 
-  return { app, listen, closeAllSessions, sessions, config, createInitialSession, closeLogger };
+  return { app, listen, closeAllSessions, sessions, config, createInitialSession, createResumedSession, closeLogger };
 }
 
 if (require.main === module) {
-  const { listen, closeAllSessions, createInitialSession, config } = createServer();
-  const server = listen();
+  const { listSessions, getSessionHistory } = require("./session-discovery");
+  const { showSessionPicker } = require("./session-picker");
 
-  // Create an initial session and display QR code
-  const session = createInitialSession();
-  const publicHost = process.env.PUBLIC_HOST || config.host;
-  const sessionUrl = `http://${publicHost}:${config.port}/#session=${session.id}&token=${session.token}`;
+  (async () => {
+    // Discover available sessions
+    let availableSessions = [];
+    try {
+      availableSessions = await listSessions(10);
+      console.log(`Found ${availableSessions.length} previous session(s)`);
+    } catch (err) {
+      console.error("Warning: Could not discover previous sessions:", err.message);
+    }
 
-  console.log("\nScan the QR code to open this session on your phone:\n");
-  qrcode.generate(sessionUrl, { small: true });
-  console.log(`\nSession URL: ${sessionUrl}\n`);
+    // Show session picker if running in TTY and sessions exist
+    let selected = null;
+    if (process.stdin.isTTY && availableSessions.length > 0) {
+      selected = await showSessionPicker(availableSessions);
+      if (selected === null) {
+        // User cancelled
+        console.log("\nCancelled.");
+        process.exit(0);
+      }
+    } else if (availableSessions.length > 0 && !process.stdin.isTTY) {
+      console.log("(Run in a terminal to select a previous session)");
+    }
 
-  const shutdown = () => {
-    log("SERVER", "Shutting down server");
-    closeAllSessions();
-    closeLogger();
-    server.close(() => process.exit(0));
-  };
+    const { listen, closeAllSessions, createInitialSession, createResumedSession, config, closeLogger } = createServer();
+    const server = listen();
 
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+    // Create session (new or resumed)
+    let session;
+    if (selected && !selected.isNew) {
+      console.log(`\nResuming session: ${selected.sessionId}`);
+      let history = [];
+      try {
+        history = await getSessionHistory(selected.sessionId);
+        console.log(`Loaded ${history.length} messages from history`);
+      } catch (err) {
+        console.error("Warning: Could not load session history:", err.message);
+      }
+      session = createResumedSession(selected.sessionId, history);
+    } else {
+      session = createInitialSession();
+    }
+
+    const publicHost = process.env.PUBLIC_HOST || config.host;
+    const sessionUrl = `http://${publicHost}:${config.port}/#session=${session.id}&token=${session.token}`;
+
+    console.log("\nScan the QR code to open this session on your phone:\n");
+    qrcode.generate(sessionUrl, { small: true });
+    console.log(`\nSession URL: ${sessionUrl}\n`);
+
+    const shutdown = () => {
+      log("SERVER", "Shutting down server");
+      closeAllSessions();
+      closeLogger();
+      server.close(() => process.exit(0));
+    };
+
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+  })();
 }
 
 module.exports = { createServer };
