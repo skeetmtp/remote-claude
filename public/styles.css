@@ -640,4 +640,58 @@ body {
   .messages {
     min-height: 40vh;
   }
+
+  /* Mobile: Default session list view - hide chat */
+  body:not(.mobile-chat-view) .chat {
+    display: none;
+  }
+
+  /* Mobile: Chat view - hide sidebar, fullscreen chat */
+  body.mobile-chat-view {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  body.mobile-chat-view .sidebar {
+    display: none;
+  }
+
+  body.mobile-chat-view .app {
+    height: 100dvh;
+    padding: 12px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    gap: 12px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.mobile-chat-view .chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 12px;
+  }
+
+  body.mobile-chat-view .messages {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
+  body.mobile-chat-view .chat-header,
+  body.mobile-chat-view .composer {
+    flex-shrink: 0;
+  }
+
+  /* Back to sessions button - hidden by default, shown on mobile chat view */
+  .back-to-sessions {
+    display: none;
+  }
+
+  body.mobile-chat-view .back-to-sessions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
 }

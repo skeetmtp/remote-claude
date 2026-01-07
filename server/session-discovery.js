@@ -99,14 +99,19 @@ async function listSessions(limit = 10) {
     const sessionId = file.replace(".jsonl", "");
     const summary = await parseSessionSummary(filePath);
 
-    // Skip sessions without a proper summary
-    if (!summary || summary === "warmup" || summary === "(no summary)") {
+    // Skip warmup sessions only
+    if (summary === "warmup") {
       continue;
     }
 
+    // Use fallback for sessions without a summary
+    const displaySummary = summary && summary !== "(no summary)"
+      ? summary
+      : "(Untitled Session)";
+
     sessions.push({
       id: sessionId,
-      summary: summary,
+      summary: displaySummary,
       mtime: stats.mtime,
       path: filePath,
     });
@@ -143,7 +148,11 @@ async function getSessionHistory(sessionId) {
   const sessionsPath = getProjectSessionsPath();
   const filePath = path.join(sessionsPath, `${sessionId}.jsonl`);
 
+  console.log(`[session-discovery] Loading history for session: ${sessionId}`);
+  console.log(`[session-discovery] Reading file: ${filePath}`);
+
   if (!fs.existsSync(filePath)) {
+    console.log(`[session-discovery] File not found, returning empty history`);
     return [];
   }
 
@@ -186,7 +195,14 @@ async function getSessionHistory(sessionId) {
       }
     });
 
-    rl.on("close", () => resolve(messages));
+    rl.on("close", () => {
+      const firstMsg = messages[0];
+      console.log(`[session-discovery] Loaded ${messages.length} messages from ${sessionId}`);
+      if (firstMsg) {
+        console.log(`[session-discovery] First message: ${firstMsg.role}: ${firstMsg.text?.slice(0, 50)}...`);
+      }
+      resolve(messages);
+    });
     rl.on("error", reject);
   });
 }

@@ -334,10 +334,13 @@ function createServer(options = {}) {
     }
 
     addSubscriber(res) {
+      const firstHistoryMsg = this.historicalMessages[0];
       log("SSE", `Session ${this.id} adding subscriber`, {
         totalSubscribers: this.subscribers.size + 1,
         historySize: this.history.length,
-        historicalMessagesSize: this.historicalMessages.length
+        historicalMessagesSize: this.historicalMessages.length,
+        resumeSessionId: this.resumeSessionId,
+        firstHistoryPreview: firstHistoryMsg ? `${firstHistoryMsg.role}: ${firstHistoryMsg.text?.slice(0, 50)}...` : "(none)"
       });
 
       this.subscribers.add(res);
@@ -361,6 +364,13 @@ function createServer(options = {}) {
       for (const event of this.history) {
         sendSse(res, event.type, event);
       }
+
+      // Signal that all history has been sent
+      sendSse(res, "history_complete", {
+        id: `${this.id}:history:complete`,
+        type: "history_complete",
+        data: { count: this.historicalMessages.length + this.history.length }
+      });
 
       if (!this.heartbeat) {
         log("SSE", `Session ${this.id} starting heartbeat`);
@@ -746,6 +756,12 @@ function createServer(options = {}) {
       resumeSessionId: resumeSessionId,
     });
     session.historicalMessages = history || [];
+    const firstMsg = session.historicalMessages[0];
+    log("SESSION", `Created resumed session ${session.id}`, {
+      resumeSessionId: resumeSessionId,
+      historyCount: session.historicalMessages.length,
+      firstMsgPreview: firstMsg ? `${firstMsg.role}: ${firstMsg.text?.slice(0, 50)}...` : "(none)"
+    });
     sessions.set(session.id, session);
     return session;
   }

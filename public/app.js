@@ -9,6 +9,7 @@ const composer = document.getElementById("composer");
 const promptInput = document.getElementById("prompt");
 const interruptBtn = document.getElementById("interrupt");
 const closeSessionBtn = document.getElementById("close-session");
+const backSessionsBtn = document.getElementById("back-sessions");
 const permissionModal = document.getElementById("permission-modal");
 const permissionTool = document.getElementById("permission-tool");
 const permissionInput = document.getElementById("permission-input");
@@ -34,6 +35,22 @@ function formatTime(iso) {
   if (!iso) return "";
   const date = new Date(iso);
   return date.toLocaleTimeString();
+}
+
+function isMobile() {
+  return window.matchMedia("(max-width: 900px)").matches;
+}
+
+function updateMobileView() {
+  if (isMobile() && state.activeId) {
+    document.body.classList.add("mobile-chat-view");
+  } else {
+    document.body.classList.remove("mobile-chat-view");
+  }
+}
+
+function showSessionList() {
+  document.body.classList.remove("mobile-chat-view");
 }
 
 function loadTokens() {
@@ -83,6 +100,7 @@ function applyHashParams() {
 
   // Clear the hash from URL for cleaner display
   history.replaceState(null, "", window.location.pathname);
+  updateMobileView();
   return true;
 }
 
@@ -182,6 +200,7 @@ function setActiveSession(sessionId) {
   openStream(sessionId);
   updateSessionMeta();
   updateActionButtons();
+  updateMobileView();
 }
 
 function updateSessionMeta(statusOverride) {
@@ -280,11 +299,11 @@ function openStream(sessionId) {
     appendHistoryMessage(payload.data.role, payload.data.text, payload.data.timestamp);
   });
 
-  // Scroll to bottom after stream opens (catches case where history is loaded)
-  source.addEventListener("open", () => {
-    setTimeout(() => {
+  // Scroll to bottom when all history has been loaded
+  source.addEventListener("history_complete", () => {
+    requestAnimationFrame(() => {
       messagesEl.scrollTop = messagesEl.scrollHeight;
-    }, 200);
+    });
   });
 
   source.addEventListener("assistant_text", (event) => {
@@ -731,7 +750,7 @@ async function createSession() {
   state.tokens.set(data.id, data.token);
   saveTokens();
   await loadSessions();
-  setActiveSession(data.id);
+  setActiveSession(data.id); // This already calls updateMobileView()
 }
 
 async function sendMessage(text) {
@@ -787,6 +806,7 @@ async function closeSession() {
   await loadSessions();
   updateSessionMeta();
   updateActionButtons();
+  updateMobileView();
 }
 
 newSessionBtn.addEventListener("click", () => {
@@ -816,6 +836,10 @@ closeSessionBtn.addEventListener("click", () => {
   closeSession().catch((err) => appendSystem(err.message));
 });
 
+backSessionsBtn.addEventListener("click", () => {
+  showSessionList();
+});
+
 allowToolBtn.addEventListener("click", () => {
   respondPermission("allow").catch((err) => appendSystem(err.message));
 });
@@ -833,3 +857,4 @@ loadActiveSession();
 applyHashParams(); // Apply session from URL hash if present
 loadSessions().catch((err) => appendSystem(err.message));
 updateActionButtons();
+updateMobileView(); // Set initial mobile view based on active session
