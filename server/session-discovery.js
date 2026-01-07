@@ -15,27 +15,39 @@ function getProjectSessionsPath(cwd = process.cwd()) {
 }
 
 /**
- * Parse the first line of a JSONL file to extract the summary
+ * Parse the first few lines of a JSONL file to extract the summary
+ * Scans up to maxLines to find a summary entry (it may not be the first line)
  */
 async function parseSessionSummary(filePath) {
   return new Promise((resolve) => {
     const stream = fs.createReadStream(filePath, { encoding: "utf8" });
     const rl = readline.createInterface({ input: stream });
     let resolved = false;
+    let linesRead = 0;
+    const maxLines = 10;
 
     rl.on("line", (line) => {
       if (resolved) return;
-      resolved = true;
-      rl.close();
-      stream.destroy();
+      linesRead++;
+
       try {
         const obj = JSON.parse(line);
         if (obj.type === "summary" && obj.summary) {
+          resolved = true;
+          rl.close();
+          stream.destroy();
           resolve(obj.summary);
-        } else {
-          resolve(null);
+          return;
         }
       } catch {
+        // Skip malformed lines
+      }
+
+      // Stop after maxLines if no summary found
+      if (linesRead >= maxLines) {
+        resolved = true;
+        rl.close();
+        stream.destroy();
         resolve(null);
       }
     });
