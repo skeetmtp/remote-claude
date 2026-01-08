@@ -29,6 +29,8 @@ const state = {
   pendingClientMessages: new Set(),
   permissionQueue: [],
   currentPermission: null,
+  lastResult: null,      // Stores last result message (costs, tokens, etc.)
+  sessionInfo: null,     // Stores system init info (tools, model, etc.)
 };
 
 function formatTime(iso) {
@@ -275,6 +277,69 @@ function appendSystem(text) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+// Handle all Claude message types from FORMAT.md
+function handleClaudeMessage(msg) {
+  if (!msg || !msg.type) return;
+
+  switch (msg.type) {
+    case "result":
+      handleResultMessage(msg);
+      break;
+    case "system":
+      if (msg.subtype === "init") handleSystemInit(msg);
+      break;
+    case "error":
+      handleErrorMessage(msg);
+      break;
+    // These types are handled silently or by other SSE events:
+    // - "assistant" -> handled by assistant_text SSE event
+    // - "user" -> handled by user_message SSE event
+    // - "stream_event" -> server extracts text into assistant_text
+    // - "auth_status" -> silent
+    // - "control_request" -> handled by permission_request SSE event
+    // - "control_response" -> silent (initialize response, etc.)
+  }
+}
+
+function handleResultMessage(msg) {
+  // Store result data for potential debugging/future use
+  state.lastResult = {
+    success: msg.subtype === "success",
+    isError: msg.is_error,
+    durationMs: msg.duration_ms,
+    durationApiMs: msg.duration_api_ms,
+    numTurns: msg.num_turns,
+    totalCostUsd: msg.total_cost_usd,
+    usage: msg.usage,
+    modelUsage: msg.modelUsage,
+    result: msg.result
+  };
+}
+
+function handleSystemInit(msg) {
+  // Store session metadata for potential future use
+  state.sessionInfo = {
+    tools: msg.tools,
+    model: msg.model,
+    slashCommands: msg.slash_commands,
+    mcpServers: msg.mcp_servers,
+    cwd: msg.cwd,
+    permissionMode: msg.permissionMode,
+    claudeCodeVersion: msg.claude_code_version,
+    outputStyle: msg.output_style,
+    agents: msg.agents,
+    skills: msg.skills,
+    plugins: msg.plugins
+  };
+}
+
+function handleErrorMessage(msg) {
+  const error = msg.error || {};
+  const errorType = error.type || "unknown";
+  const errorMessage = error.message || "An error occurred";
+  appendSystem(`Error (${errorType}): ${errorMessage}`);
+}
+
 function closeStream() {
   if (state.source) {
     state.source.close();
@@ -340,6 +405,12 @@ function openStream(sessionId) {
 
   source.addEventListener("error", () => {
     appendSystem("Connection lost. Refresh or reopen the session.");
+  });
+
+  // Handle raw Claude messages for all protocol types
+  source.addEventListener("claude_message", (event) => {
+    const payload = JSON.parse(event.data);
+    handleClaudeMessage(payload.data);
   });
 }
 
@@ -656,7 +727,7 @@ async function submitQuestionAnswers() {
   const questions = current.input?.questions || [];
   const answers = {};
 
-  // Collect answers
+  // Collect answers - use question text as key per FORMAT.md spec
   questions.forEach((q, qIndex) => {
     const inputs = document.querySelectorAll(`input[name="question-${qIndex}"]`);
     const selectedValues = [];
@@ -667,18 +738,18 @@ async function submitQuestionAnswers() {
       }
     });
 
-    // Store answer
+    // Store answer with question text as key
     if (q.multiSelect) {
-      answers[qIndex.toString()] = selectedValues;
+      answers[q.question] = selectedValues;
     } else {
-      answers[qIndex.toString()] = selectedValues.length > 0 ? selectedValues[0] : null;
+      answers[q.question] = selectedValues.length > 0 ? selectedValues[0] : null;
     }
   });
 
   const token = state.tokens.get(state.activeId);
   if (!token) return;
 
-  // Send response with answers
+  // Send response with questions and answers per FORMAT.md spec
   await api(`/api/sessions/${state.activeId}/permissions`, {
     method: "POST",
     headers: {
@@ -687,7 +758,7 @@ async function submitQuestionAnswers() {
     body: JSON.stringify({
       requestId: current.requestId,
       decision: "allow",
-      message: JSON.stringify({ answers }),
+      message: JSON.stringify({ questions, answers }),
     }),
   });
 
