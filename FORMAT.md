@@ -44,7 +44,43 @@ Send a user message to Claude:
 - `message.content`: Array of content blocks (typically text)
 - `parent_tool_use_id`: Optional tool context (usually `null`)
 
-### Control Request
+### Initialize Request
+
+Initialize the Claude CLI session (sent at startup):
+
+```json
+{
+  "type": "control_request",
+  "request_id": "unique-request-id",
+  "request": {
+    "subtype": "initialize",
+    "hooks": {
+      "PreToolUse": [
+        {
+          "matcher": "Edit|Write|MultiEdit",
+          "hookCallbackIds": ["hook_0"]
+        }
+      ],
+      "PostToolUse": [
+        {
+          "matcher": "Edit|Write|MultiEdit",
+          "hookCallbackIds": ["hook_1"]
+        }
+      ]
+    },
+    "sdkMcpServers": ["claude-vscode"],
+    "appendSystemPrompt": "Additional system prompt text..."
+  }
+}
+```
+
+**Fields:**
+- `subtype`: `"initialize"`
+- `hooks`: Optional object mapping hook types to matchers and callback IDs
+- `sdkMcpServers`: Optional array of SDK MCP server names
+- `appendSystemPrompt`: Optional additional text to append to the system prompt
+
+### Control Request (Interrupt)
 
 Send control commands to Claude:
 
@@ -60,6 +96,36 @@ Send control commands to Claude:
 
 **Supported subtypes:**
 - `"interrupt"` - Stop Claude's current operation
+
+### MCP Message Request
+
+Forward messages to/from MCP servers:
+
+```json
+{
+  "type": "control_request",
+  "request_id": "unique-request-id",
+  "request": {
+    "subtype": "mcp_message",
+    "server_name": "claude-vscode",
+    "message": {
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {},
+        "clientInfo": {"name": "claude-code", "version": "2.1.1"}
+      },
+      "jsonrpc": "2.0",
+      "id": 0
+    }
+  }
+}
+```
+
+**Fields:**
+- `subtype`: `"mcp_message"`
+- `server_name`: Name of the MCP server
+- `message`: JSON-RPC message to send to/from the server
 
 ### Control Response
 
@@ -138,7 +204,7 @@ Respond to Claude's control requests (e.g., tool permissions):
 
 **Special case - AskUserQuestion:**
 
-When allowing an `AskUserQuestion` tool, use `updatedInput` instead of `message`:
+When allowing an `AskUserQuestion` tool, include the original `questions` array and `answers` in `updatedInput`:
 
 ```json
 {
@@ -149,9 +215,19 @@ When allowing an `AskUserQuestion` tool, use `updatedInput` instead of `message`
     "response": {
       "behavior": "allow",
       "updatedInput": {
+        "questions": [
+          {
+            "question": "Yes or no?",
+            "header": "Choice",
+            "options": [
+              {"label": "Yes", "description": "Affirmative response"},
+              {"label": "No", "description": "Negative response"}
+            ],
+            "multiSelect": false
+          }
+        ],
         "answers": {
-          "0": "Yes",
-          "1": ["Option1", "Option2"]
+          "Yes or no?": "Yes"
         }
       },
       "toolUseID": "tool-use-id-from-request"
@@ -161,13 +237,85 @@ When allowing an `AskUserQuestion` tool, use `updatedInput` instead of `message`
 ```
 
 **Answer format:**
-- Keys are question indices as strings (`"0"`, `"1"`, etc.)
+- Keys are the question text strings (e.g., `"Yes or no?"`)
 - Single-select: String value (e.g., `"Yes"`)
 - Multi-select: Array of strings (e.g., `["Option1", "Option2"]`)
+
+**MCP Message Response:**
+
+When responding to an MCP message control request:
+
+```json
+{
+  "type": "control_response",
+  "response": {
+    "subtype": "success",
+    "request_id": "matching-request-id",
+    "response": {
+      "mcp_response": {
+        "result": {
+          "protocolVersion": "2025-11-25",
+          "capabilities": {"tools": {}},
+          "serverInfo": {"name": "claude-vscode", "version": "2.0.75"}
+        },
+        "jsonrpc": "2.0",
+        "id": 0
+      }
+    }
+  }
+}
+```
 
 ## Output Format (Claude → stdout)
 
 Messages received from Claude CLI via stdout.
+
+### Initialize Response
+
+Response to the initialize control request, containing session configuration:
+
+```json
+{
+  "type": "control_response",
+  "response": {
+    "subtype": "success",
+    "request_id": "matching-request-id",
+    "response": {
+      "commands": [
+        {
+          "name": "compact",
+          "description": "Clear conversation history but keep a summary in context",
+          "argumentHint": "<optional custom summarization instructions>"
+        },
+        {
+          "name": "context",
+          "description": "Show current context usage",
+          "argumentHint": ""
+        }
+      ],
+      "output_style": "default",
+      "available_output_styles": ["default", "Explanatory", "Learning"],
+      "models": [
+        {
+          "value": "default",
+          "displayName": "Default (recommended)",
+          "description": "Opus 4.5 · Most capable for complex work"
+        },
+        {
+          "value": "sonnet",
+          "displayName": "Sonnet",
+          "description": "Sonnet 4.5 · Best for everyday tasks"
+        }
+      ],
+      "account": {
+        "email": "user@example.com",
+        "organization": "Organization Name",
+        "subscriptionType": "Claude Team"
+      }
+    }
+  }
+}
+```
 
 ### Assistant Message
 
@@ -177,7 +325,7 @@ Claude's response with text or tool usage:
 {
   "type": "assistant",
   "message": {
-    "model": "claude-sonnet-4-5-20250929",
+    "model": "claude-opus-4-5-20251101",
     "id": "msg_123abc",
     "type": "message",
     "role": "assistant",
@@ -193,6 +341,7 @@ Claude's response with text or tool usage:
       "output_tokens": 50
     }
   },
+  "parent_tool_use_id": null,
   "session_id": "session-uuid",
   "uuid": "message-uuid"
 }
@@ -202,21 +351,72 @@ Claude's response with text or tool usage:
 - `"text"` - Assistant's text response
 - `"tool_use"` - Claude requesting to use a tool
 
-**Streaming deltas:**
+**Streaming events:**
 
-During streaming, Claude sends partial updates:
+During streaming, Claude sends `stream_event` messages with various event types:
 
 ```json
 {
-  "type": "assistant",
-  "delta": {
+  "type": "stream_event",
+  "event": {
+    "type": "message_start",
+    "message": {
+      "model": "claude-opus-4-5-20251101",
+      "id": "msg_123abc",
+      "type": "message",
+      "role": "assistant",
+      "content": [],
+      "stop_reason": null,
+      "usage": {"input_tokens": 3, "output_tokens": 1}
+    }
+  },
+  "session_id": "session-uuid",
+  "parent_tool_use_id": null,
+  "uuid": "event-uuid"
+}
+```
+
+**Stream event types:**
+- `message_start` - Initial message metadata
+- `content_block_start` - Start of a content block (text or tool_use)
+- `content_block_delta` - Partial content updates
+- `content_block_stop` - End of a content block
+- `message_delta` - Updates to message metadata (stop_reason, usage)
+- `message_stop` - End of the message stream
+
+**Content block delta example:**
+```json
+{
+  "type": "stream_event",
+  "event": {
     "type": "content_block_delta",
     "index": 0,
     "delta": {
       "type": "text_delta",
       "text": "partial text"
     }
-  }
+  },
+  "session_id": "session-uuid",
+  "parent_tool_use_id": null,
+  "uuid": "event-uuid"
+}
+```
+
+**Tool use input delta example:**
+```json
+{
+  "type": "stream_event",
+  "event": {
+    "type": "content_block_delta",
+    "index": 0,
+    "delta": {
+      "type": "input_json_delta",
+      "partial_json": "{\"quest"
+    }
+  },
+  "session_id": "session-uuid",
+  "parent_tool_use_id": null,
+  "uuid": "event-uuid"
 }
 ```
 
@@ -227,30 +427,27 @@ Claude requesting permission to use a tool:
 ```json
 {
   "type": "control_request",
-  "message": {
-    "type": "control_request",
-    "request_id": "unique-request-id",
-    "request": {
-      "subtype": "can_use_tool",
-      "tool_name": "Bash",
-      "input": {
-        "command": "ls -la"
-      },
-      "permission_suggestions": [
-        {
-          "type": "addRules",
-          "rules": [
-            {
-              "toolName": "Bash",
-              "ruleContent": "git show:*"
-            }
-          ],
-          "behavior": "allow",
-          "destination": "localSettings"
-        }
-      ],
-      "tool_use_id": "toolu_xyz"
-    }
+  "request_id": "unique-request-id",
+  "request": {
+    "subtype": "can_use_tool",
+    "tool_name": "Bash",
+    "input": {
+      "command": "ls -la"
+    },
+    "permission_suggestions": [
+      {
+        "type": "addRules",
+        "rules": [
+          {
+            "toolName": "Bash",
+            "ruleContent": "git show:*"
+          }
+        ],
+        "behavior": "allow",
+        "destination": "localSettings"
+      }
+    ],
+    "tool_use_id": "toolu_xyz"
   }
 }
 ```
@@ -273,6 +470,7 @@ Claude requesting permission to use a tool:
 ```json
 {
   "type": "control_request",
+  "request_id": "unique-request-id",
   "request": {
     "subtype": "can_use_tool",
     "tool_name": "AskUserQuestion",
@@ -337,9 +535,116 @@ When a tool completes or errors:
       }
     ]
   },
-  "tool_use_result": "Success or Error: message"
+  "parent_tool_use_id": null,
+  "session_id": "session-uuid",
+  "uuid": "result-uuid",
+  "tool_use_result": {
+    "questions": [...],
+    "answers": {"Question text?": "Answer"}
+  }
 }
 ```
+
+**Notes:**
+- `tool_use_result`: Contains the full result object (structure varies by tool)
+- For `AskUserQuestion`, contains `questions` array and `answers` object
+
+### Auth Status
+
+Authentication status update (sent during initialization):
+
+```json
+{
+  "type": "auth_status",
+  "isAuthenticating": false,
+  "output": [],
+  "uuid": "auth-uuid",
+  "session_id": "session-uuid"
+}
+```
+
+### System Init
+
+Session initialization message (sent when user sends first message):
+
+```json
+{
+  "type": "system",
+  "subtype": "init",
+  "cwd": "/current/working/directory",
+  "session_id": "session-uuid",
+  "tools": ["Task", "Bash", "Glob", "Grep", "Read", "Edit", "Write", "..."],
+  "mcp_servers": [
+    {"name": "claude-vscode", "status": "connected"}
+  ],
+  "model": "claude-opus-4-5-20251101",
+  "permissionMode": "default",
+  "slash_commands": ["compact", "context", "cost", "init", "..."],
+  "apiKeySource": "none",
+  "claude_code_version": "2.1.1",
+  "output_style": "default",
+  "agents": ["Bash", "general-purpose", "Explore", "Plan", "..."],
+  "skills": [],
+  "plugins": [
+    {"name": "plugin-name", "path": "/path/to/plugin"}
+  ],
+  "uuid": "init-uuid"
+}
+```
+
+### Result
+
+Final result message when Claude completes a turn:
+
+```json
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 3136,
+  "duration_api_ms": 12925,
+  "num_turns": 1,
+  "result": "Final assistant response text",
+  "session_id": "session-uuid",
+  "total_cost_usd": 0.18986465,
+  "usage": {
+    "input_tokens": 3,
+    "cache_creation_input_tokens": 20336,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 12,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard"
+  },
+  "modelUsage": {
+    "claude-opus-4-5-20251101": {
+      "inputTokens": 9,
+      "outputTokens": 122,
+      "cacheReadInputTokens": 9209,
+      "cacheCreationInputTokens": 28341,
+      "webSearchRequests": 0,
+      "costUSD": 0.18483075,
+      "contextWindow": 200000
+    }
+  },
+  "permission_denials": [],
+  "uuid": "result-uuid"
+}
+```
+
+**Fields:**
+- `subtype`: `"success"` or `"error"`
+- `is_error`: Boolean indicating if the result is an error
+- `duration_ms`: Total duration in milliseconds
+- `duration_api_ms`: API call duration in milliseconds
+- `num_turns`: Number of conversation turns
+- `result`: The final text output
+- `total_cost_usd`: Total cost in USD
+- `usage`: Token usage statistics
+- `modelUsage`: Per-model usage breakdown
+- `permission_denials`: Array of denied permission requests
 
 ## Error Handling
 
