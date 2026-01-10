@@ -82,3 +82,42 @@ claude <-> hook <-> web server api <-> SPA page <-> user mobile phone
 - react
 - tailwindcss
 - shadcn/ui
+
+Example of claude config:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(node --check:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(head:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/alban/Developer/tanstack/remote-claude/hook-prompt.js -a"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/alban/Developer/tanstack/remote-claude/hook-prompt.js -s 0"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
