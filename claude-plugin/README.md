@@ -39,7 +39,7 @@ A hook script for Claude CLI that forwards permission requests to a web server f
 
 1. Claude CLI triggers the hook on permission requests
 2. Hook receives JSON on stdin with request details
-3. Hook POSTs the request to `${WEB_SERVER_URL}/api/hooks/permission`
+3. Hook POSTs the request to `${WEB_SERVER_URL}/api/hooks`
 4. Server responds with `{ exitCode, stdout }`
 5. Hook outputs `stdout` and exits with `exitCode`
 
