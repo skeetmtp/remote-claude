@@ -78,8 +78,11 @@ PROXY_SERVER_URL=http://example.com:8080 npm run start
 
 ### Event Handling
 
-- **`retry` event**: Sends ESC + "retry" + ENTER to claude
-- Unblocks claude when waiting for user permission
+- **`retry` event**: Unblocks claude when waiting for user permission
+  - Sends ESC to cancel the permission menu
+  - Waits for configurable delay (default 100ms)
+  - Sends "retry" + ENTER to trigger permission re-request
+  - Delay ensures menu is fully dismissed before retry command
 
 ### Debug Logging
 
@@ -93,6 +96,7 @@ PROXY_SERVER_URL=http://example.com:8080 npm run start
 ### Environment Variables
 
 - `PROXY_SERVER_URL` - Override SSE server URL (default: `http://localhost:3000`)
+- `RETRY_SEQUENCE_DELAY_MS` - Delay in milliseconds between ESC and retry text (default: `100`)
 - `DEBUG` - Enable debug logging (e.g., `DEBUG=proxy:*`)
 
 ### Claude Binary Location

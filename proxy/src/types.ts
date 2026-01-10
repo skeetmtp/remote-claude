@@ -16,6 +16,9 @@ export interface Config {
 
   /** Retry interval multiplier for exponential backoff */
   retryMultiplier: number;
+
+  /** Delay in milliseconds between ESC and retry text in retry sequence */
+  retrySequenceDelayMs: number;
 }
 
 /**

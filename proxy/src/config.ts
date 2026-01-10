@@ -16,5 +16,6 @@ export function loadConfig(): Config {
     initialRetryMs: 1000,
     maxRetryMs: 30000,
     retryMultiplier: 2.0,
+    retrySequenceDelayMs: parseInt(process.env.RETRY_SEQUENCE_DELAY_MS || '100', 10),
   };
 }

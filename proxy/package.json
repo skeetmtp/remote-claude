@@ -4,7 +4,7 @@
   "description": "CLI proxy for the claude CLI that preserves full interactive terminal behavior",
   "main": "dist/index.js",
   "scripts": {
-    "start": "tsx src/index.ts",
+    "start": "DEBUG=proxy:* tsx src/index.ts",
     "build": "tsc",
     "dev": "tsx watch src/index.ts"
   },

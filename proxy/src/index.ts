@@ -34,7 +34,7 @@ async function main() {
   logger.main(`CLI arguments: ${JSON.stringify(args)}`);
 
   // 6. Create PTY manager
-  const ptyManager = new PTYManager(config.claudePath);
+  const ptyManager = new PTYManager(config.claudePath, config.retrySequenceDelayMs);
 
   // 7. Create SSE client
   const sseClient = new SSEClient(

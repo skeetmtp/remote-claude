@@ -7,16 +7,18 @@ import { logger } from './logger';
 export class PTYManager {
   private pty: pty.IPty | null = null;
   private claudePath: string;
+  private retryDelayMs: number;
 
-  constructor(claudePath: string) {
+  constructor(claudePath: string, retryDelayMs: number) {
     this.claudePath = claudePath;
+    this.retryDelayMs = retryDelayMs;
   }
 
   /**
    * Spawn the claude CLI in a PTY
    */
   spawn(args: string[], sessionId: string): void {
-    const allArgs = [...args, '--session-id', sessionId];
+    const allArgs = [...args, '--session-id', sessionId, '--model', 'sonnet'];
 
     logger.pty(`Spawning claude: ${this.claudePath} ${allArgs.join(' ')}`);
 
@@ -58,6 +60,11 @@ export class PTYManager {
   /**
    * Send the retry sequence: ESC + "retry" + ENTER
    * This unblocks claude when waiting for user permission
+   *
+   * The sequence is split into two parts with a delay:
+   * 1. Send ESC to cancel the permission menu
+   * 2. Wait for the menu to be dismissed
+   * 3. Send "retry" + ENTER to trigger the retry
    */
   sendRetrySequence(): void {
     if (!this.pty) {
@@ -65,8 +72,23 @@ export class PTYManager {
       return;
     }
 
-    logger.pty('Sending retry sequence: ESC + retry + ENTER');
-    this.pty.write('\x1bretry\r');
+    logger.pty(`Sending retry sequence with ${this.retryDelayMs}ms delay`);
+
+    // Step 1: Send ESC to cancel the menu
+    logger.pty('Sending ESC to cancel permission menu');
+    this.pty.write('\x1b');
+
+    // Step 2: Wait for menu to be dismissed, then send retry command
+    setTimeout(() => {
+      if (!this.pty) {
+        logger.error('PTY closed during retry sequence');
+        return;
+      }
+
+      logger.pty('Sending retry command');
+      this.pty.write('retry');
+      this.pty.write('\x0d'); // Send ENTER as control character (CR)
+    }, this.retryDelayMs);
   }
 
   /**
