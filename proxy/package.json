@@ -1,0 +1,33 @@
+{
+  "name": "claude-proxy",
+  "version": "1.0.0",
+  "description": "CLI proxy for the claude CLI that preserves full interactive terminal behavior",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts"
+  },
+  "keywords": [
+    "claude",
+    "proxy",
+    "cli",
+    "pty"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "node-pty": "^1.1.0",
+    "eventsource": "^2.0.2",
+    "uuid": "^9.0.1",
+    "debug": "^4.3.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.0",
+    "@types/uuid": "^9.0.7",
+    "@types/debug": "^4.1.12",
+    "@types/eventsource": "^1.1.15",
+    "tsx": "^4.7.0"
+  }
+}

@@ -59,7 +59,7 @@ Instead:
 
 * Start `claude` with the additional argument:
 
-  ```
+  ```text
   --session-id <uuid>
   ```
 
@@ -71,13 +71,13 @@ Instead:
 
 * Default server URL:
 
-  ```
+  ```text
   http://localhost:3000
   ```
 
 * This must be overrideable via the environment variable:
 
-  ```
+  ```text
   PROXY_SERVER_URL
   ```
 
@@ -87,13 +87,13 @@ Instead:
 
 * Endpoint:
 
-  ```
+  ```text
   GET /events
   ```
 
 * If a session ID exists, include it as a query parameter:
 
-  ```
+  ```text
   /events?sessionId=<uuid>
   ```
 
@@ -108,9 +108,10 @@ When the proxy receives a `retry` event:
 1. Send **ESC** to the running `claude` PTY
 2. Then send the text:
 
-   ```
+   ```text
    retry
    ```
+
 3. Followed by **ENTER**
 
 This is used to unblock `claude` when it is waiting for user permission.
@@ -131,4 +132,3 @@ This is used to unblock `claude` when it is waiting for user permission.
 * Do **not** implement the server
 * Assume the server already exists and follows the protocol
 * Do **not** implement custom terminal emulation beyond what is required for PTY support
-
