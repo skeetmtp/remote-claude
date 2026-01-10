@@ -1,0 +1,25 @@
+{
+  "name": "claude-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CLI proxy for the claude binary with SSE control",
+  "license": "MIT",
+  "bin": {
+    "claude-proxy": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.4"
+  }
+}
