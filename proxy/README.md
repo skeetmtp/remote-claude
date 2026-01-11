@@ -44,6 +44,9 @@ npm run start -- --help
 npm run start -- --version
 npm run start -- "Write a hello world function"
 
+# Specify working directory for claude
+npm run start -- --cwd /path/to/project
+
 # With debug logging
 DEBUG=proxy:* npm run start -- --help
 
@@ -51,7 +54,34 @@ DEBUG=proxy:* npm run start -- --help
 PROXY_SERVER_URL=http://example.com:8080 npm run start
 ```
 
+### Proxy-Specific Options
+
+| Option | Description |
+|--------|-------------|
+| `--cwd <path>` | Set the working directory for the Claude process |
+
+All other arguments are passed directly to the `claude` CLI.
+
 ## Features
+
+### QR Code Session Link
+
+On startup, the proxy displays an ASCII QR code linking to the web app session:
+
+```
+┌─────────────────────────────────────┐
+│     Remote Claude - Session Ready   │
+└─────────────────────────────────────┘
+
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▀█ █▄█▀█ ▄▄▄▄▄ █
+...
+
+Session URL: http://localhost:3000/session/abc-123-...
+Session ID:  abc-123-...
+```
+
+Scan the QR code with your mobile device to access the remote permission interface.
 
 ### PTY-Based Spawning
 
@@ -59,6 +89,7 @@ PROXY_SERVER_URL=http://example.com:8080 npm run start
 - Preserves full interactive terminal behavior
 - Handles ANSI escape sequences and terminal control codes
 - Supports terminal resizing
+- Supports custom working directory via `--cwd` option
 
 ### Session Management
 
@@ -117,6 +148,7 @@ proxy/
 │   ├── index.ts         # Main entry point & orchestration
 │   ├── pty-manager.ts   # PTY spawn & management
 │   ├── sse-client.ts    # SSE connection & reconnection
+│   ├── qr-display.ts    # QR code generation & display
 │   ├── config.ts        # Configuration management
 │   ├── logger.ts        # Debug logging
 │   └── types.ts         # TypeScript interfaces

@@ -16,11 +16,15 @@ export class PTYManager {
 
   /**
    * Spawn the claude CLI in a PTY
+   * @param args - CLI arguments to pass to claude
+   * @param sessionId - Session ID for the claude session
+   * @param cwd - Optional working directory (defaults to process.cwd())
    */
-  spawn(args: string[], sessionId: string): void {
+  spawn(args: string[], sessionId: string, cwd?: string): void {
     const allArgs = [...args, '--session-id', sessionId, '--model', 'sonnet'];
+    const workingDir = cwd || process.cwd();
 
-    logger.pty(`Spawning claude: ${this.claudePath} ${allArgs.join(' ')}`);
+    logger.pty(`Spawning claude: ${this.claudePath} ${allArgs.join(' ')} (cwd: ${workingDir})`);
 
     // Filter out undefined environment variables
     const env: Record<string, string> = {};
@@ -35,7 +39,7 @@ export class PTYManager {
         name: 'xterm-256color',
         cols: process.stdout.columns || 80,
         rows: process.stdout.rows || 24,
-        cwd: process.cwd(),
+        cwd: workingDir,
         env,
       });
 

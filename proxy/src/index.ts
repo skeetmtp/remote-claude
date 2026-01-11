@@ -1,12 +1,33 @@
 #!/usr/bin/env node
 
 import * as fs from 'fs';
+import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { setupLogging, logger } from './logger';
 import { loadConfig } from './config';
 import { PTYManager } from './pty-manager';
 import { SSEClient } from './sse-client';
 import { displaySessionQR } from './qr-display';
+
+/**
+ * Parse proxy-specific arguments from CLI args
+ * Returns the cwd option and remaining args to pass to claude
+ */
+function parseProxyArgs(args: string[]): { cwd?: string; claudeArgs: string[] } {
+  const claudeArgs: string[] = [];
+  let cwd: string | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--cwd' && i + 1 < args.length) {
+      cwd = path.resolve(args[i + 1]);
+      i++; // Skip the next argument (the path)
+    } else {
+      claudeArgs.push(args[i]);
+    }
+  }
+
+  return { cwd, claudeArgs };
+}
 
 /**
  * Main entry point for the proxy
@@ -30,14 +51,24 @@ async function main() {
   const sessionId = uuidv4();
   logger.main(`Session ID: ${sessionId}`);
 
-  // 5. Get CLI arguments (exclude node and script paths)
-  const args = process.argv.slice(2);
-  logger.main(`CLI arguments: ${JSON.stringify(args)}`);
+  // 5. Parse CLI arguments (exclude node and script paths)
+  const rawArgs = process.argv.slice(2);
+  const { cwd, claudeArgs } = parseProxyArgs(rawArgs);
+  logger.main(`CLI arguments: ${JSON.stringify(claudeArgs)}`);
+  if (cwd) {
+    logger.main(`Working directory: ${cwd}`);
+  }
 
-  // 6. Create PTY manager
+  // 6. Validate cwd if provided
+  if (cwd && !fs.existsSync(cwd)) {
+    console.error(`Error: working directory not found: ${cwd}`);
+    process.exit(1);
+  }
+
+  // 7. Create PTY manager
   const ptyManager = new PTYManager(config.claudePath, config.retrySequenceDelayMs);
 
-  // 7. Create SSE client
+  // 8. Create SSE client
   const sseClient = new SSEClient(
     config.sseUrl,
     sessionId,
@@ -46,7 +77,7 @@ async function main() {
     config.retryMultiplier
   );
 
-  // 8. Handle graceful shutdown
+  // 9. Handle graceful shutdown
   const shutdown = (signal: string) => {
     logger.main(`${signal} received, shutting down`);
     sseClient.disconnect();
@@ -57,19 +88,19 @@ async function main() {
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-  // 9. Spawn the PTY first
+  // 10. Spawn the PTY first
   try {
-    ptyManager.spawn(args, sessionId);
+    ptyManager.spawn(claudeArgs, sessionId, cwd);
   } catch (error) {
     logger.error('Failed to spawn PTY:', error);
     console.error('Fatal error:', error);
     process.exit(1);
   }
 
-  // 10. Display QR code and session info
+  // 11. Display QR code and session info
   displaySessionQR(config.sseUrl, sessionId);
 
-  // 11. Wire up PTY event handlers (must be after spawn)
+  // 12. Wire up PTY event handlers (must be after spawn)
   ptyManager.onExit((exitInfo) => {
     logger.main(`claude exited with code ${exitInfo.exitCode}`);
     sseClient.disconnect();
@@ -80,7 +111,7 @@ async function main() {
     process.stdout.write(data);
   });
 
-  // 12. Setup stdin/stdout piping
+  // 13. Setup stdin/stdout piping
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
     logger.main('Stdin set to raw mode');
@@ -90,7 +121,7 @@ async function main() {
     ptyManager.write(data.toString());
   });
 
-  // 13. Handle terminal resize
+  // 14. Handle terminal resize
   if (process.stdout.isTTY) {
     process.stdout.on('resize', () => {
       const cols = process.stdout.columns || 80;
@@ -100,7 +131,7 @@ async function main() {
     });
   }
 
-  // 14. Connect to SSE server (non-blocking)
+  // 15. Connect to SSE server (non-blocking)
   sseClient.onRetry(() => {
     logger.sse('Received retry event from server');
     ptyManager.sendRetrySequence();
