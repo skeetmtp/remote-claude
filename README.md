@@ -76,8 +76,61 @@ Register this hook in claude config:
 
 ### Flow
 
-claude <-> hook <-> web server api <-> SPA page <-> user mobile phone
-       <-> proxy <-> web server
+```text
+┌─────────────────┐
+│  User Terminal  │
+└────────┬────────┘
+         │ tty
+         │
+    ┌────▼─────┐
+    │  Proxy   │◄──────────────────┐
+    │   CLI    │                   │
+    └────┬─────┘                   │
+         │ PTY spawn               │
+         │ (--session-id)          │
+         │                         │
+    ┌────▼──────────┐              │
+    │ Claude Binary │              │
+    │ ~/.local/bin/ │              │ SSE
+    │    claude     │              │ 'retry' 'override'
+    └────┬──────────┘              │
+         │                         │
+         │ hook execution          │
+         │                         │
+    ┌────▼──────────┐         ┌────▼────────┐
+    │     Hook      │────────►│ Web Server  │
+    │    Plugin     │  HTTP   │     API     │
+    │ extension.js  │  POST   │   :3000     │
+    └───────────────┘         └────▲────────┘
+                                   │
+                                   │
+                                   │
+                              HTTP │
+                                   │
+                                   │
+                                   │
+                              ┌────▼─────┐
+                              │  React   │
+                              │   SPA    │
+                              └────┬─────┘
+                                   │
+                              ┌────▼──────┐
+                              │   User    │
+                              │  Browser  │
+                              │  /Mobile  │
+                              └───────────┘
+
+Data Flow:
+  1. User runs command in terminal
+  2. Proxy spawns Claude with session ID
+  3. Claude executes, hook intercepts permission/input requests
+  4. Hook sends request data to Web Server API (HTTP POST)
+  5. Web Server displays request in React SPA
+  6. User responds via browser interface
+  7. Web Server sends 'override' event to Proxy (SSE)
+  8. Proxy types user's response on TTY (ESC + text + ENTER)
+  9. Claude processes response and continues execution
+```
 
 ### Tech stack
 
