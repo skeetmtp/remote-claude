@@ -19,7 +19,7 @@ const TODOS_FILE = 'todos.json'
 
 type Todo = { id: number; name: string }
 
-async function readTodos(): Promise<Todo[]> {
+async function readTodos(): Promise<Array<Todo>> {
   return JSON.parse(
     await fs.promises.readFile(TODOS_FILE, 'utf-8').catch(() =>
       JSON.stringify(
@@ -36,15 +36,12 @@ async function readTodos(): Promise<Todo[]> {
 
 const getTodos = createServerFn({
   method: 'GET',
-})
-.handler(async () => await readTodos())
+}).handler(async () => await readTodos())
 
 export const Route = createFileRoute('/demo/start/server-funcs2')({
   component: Home,
   loader: async () => await getTodos(),
 })
-
-
 
 const addTodo = createServerFn({ method: 'POST' })
   .inputValidator((d: string) => d)
@@ -57,7 +54,7 @@ const addTodo = createServerFn({ method: 'POST' })
 
 function Home() {
   const router = useRouter()
-  let todos = Route.useLoaderData() as Todo[]
+  let todos = Route.useLoaderData()
 
   const [todo, setTodo] = useState('')
 

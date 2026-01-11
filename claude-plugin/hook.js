@@ -45,6 +45,7 @@ process.stdin.on('end', async () => {
 
     // Output stdout and exit with specified code
     if (result.stdout) {
+      log('writing stdout: ' + result.stdout);
       process.stdout.write(result.stdout);
     }
     log('exiting with code ' + (result.exitCode ?? 0));

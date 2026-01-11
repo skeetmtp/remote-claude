@@ -21,8 +21,12 @@ const TODOS_FILE = 'todos.json'
 type Todo = { id: number; name: string }
 type AuthContext = { session?: { user?: { name?: string } } }
 
-async function readTodos({ context }: { context?: AuthContext }): Promise<Todo[]> {
-  const results: Todo[] = [
+async function readTodos({
+  context,
+}: {
+  context?: AuthContext
+}): Promise<Array<Todo>> {
+  const results: Array<Todo> = [
     { id: 1, name: 'Get groceries' },
     { id: 2, name: 'Buy a new phone' },
   ]
@@ -30,21 +34,17 @@ async function readTodos({ context }: { context?: AuthContext }): Promise<Todo[]
     results.push({ id: 3, name: JSON.stringify(context.session.user.name) })
   }
   return JSON.parse(
-    await fs.promises.readFile(TODOS_FILE, 'utf-8').catch(() =>
-      JSON.stringify(
-        results,
-        null,
-        2,
-      ),
-    ),
+    await fs.promises
+      .readFile(TODOS_FILE, 'utf-8')
+      .catch(() => JSON.stringify(results, null, 2)),
   )
 }
 
 const getTodos = createServerFn({
   method: 'GET',
 })
-.middleware([authMiddleware])
-.handler(async ({ context }) => await readTodos({ context }))
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => await readTodos({ context }))
 
 const addTodo = createServerFn({ method: 'POST' })
   .inputValidator((d: string) => d)
@@ -62,7 +62,7 @@ export const Route = createFileRoute('/demo/start/server-funcs')({
 
 function Home() {
   const router = useRouter()
-  let todos = Route.useLoaderData() as Todo[]
+  let todos = Route.useLoaderData()
 
   const [todo, setTodo] = useState('')
 
