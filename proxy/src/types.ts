@@ -46,6 +46,7 @@ export interface PTYOptions {
  */
 export enum SSEEventType {
   RETRY = 'retry',
+  OVERRIDE = 'override',
 }
 
 /**

@@ -137,6 +137,11 @@ async function main() {
     ptyManager.sendRetrySequence();
   });
 
+  sseClient.onOverride((prompt) => {
+    logger.sse(`Received override event from server with prompt: "${prompt}"`);
+    ptyManager.sendOverrideSequence(prompt);
+  });
+
   sseClient.connect();
   logger.main('Proxy started successfully');
 }

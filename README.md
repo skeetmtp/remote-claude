@@ -4,11 +4,10 @@ The goal of this project is to allow user to start a claude session on it's mach
 The pain with original claude cli is that it is blocked when it ask for permission to use some tools. So the user need to come back to the terminal to approve the permission.
 This project is a solution to this problem.
 
-The idea is to start a claude session in a terminal as usual, but the claude cli can now be unblocked by the proxy when it ask for permission to use some tools.
-On first PermissionRequest, the hook send requets data to the user in a SPA page running in the browser of user mobile phone.
-The user can then chose to takeover the session from the mobile phone.
-When user takeover the session, the web server send the takeover event to the proxy, the proxy simulate the user cancel the permission request and continue the session.
-Now the claude cli will reask for permission, but the hook will now wait for the web server to send the request to the user, the user answer and the response is sent back and returned by the hook.
+The idea is to start a claude session in a terminal as usual, but the claude cli can now be unblocked remotely when it asks for permission or user input.
+When the hook detects a request, it sends the request data to a web server, which displays it in a SPA page running in the browser (on user's mobile phone or any device).
+The user can then respond to the request through the web interface.
+The web server sends an 'override' event to the proxy with the user's response, and the proxy types that response on the TTY on behalf of the user.
 
 The project is composed of the following parts:
 
@@ -43,15 +42,19 @@ The events are:
 - 'retry' : The idea is to unblock the claude cli if it is blocked on a ask for permission.
   - send to claude 'esc' and type 'retry'+'enter'
 
+- 'override' : Send a custom prompt to claude
+  - receives prompt text in the event data field
+  - send to claude 'esc' and type '<prompt>'+'enter'
+
 ### Web app
 
 The server accept connection from the proxy, proxy provide session id to the server, so the server know which session to send the event to.
 
 User connect to the web app, using an url containing the session id.
-Server reveive hooks events from claude, and send display last one in the UI of the web app.
+Server receives hook events from claude, and displays them in the UI of the web app.
 
-Web app have 2 mode with a flag named 'takeover' that can be set to 'true' or 'false'.
-takeover=false (default) : server display hooks events in the UI of the web app with a button to takeover the session.
+When claude blocks waiting for user input, the user can respond through the web app interface.
+The web server sends the user's response as an 'override' event to the proxy, which types it on the TTY.
 
 ### Claude Plugin
 

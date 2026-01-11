@@ -65,6 +65,7 @@ export class SSEClient {
   private eventSource: EventSource | null = null;
   private reconnectionManager: ReconnectionManager;
   private retryCallback: (() => void) | null = null;
+  private overrideCallback: ((prompt: string) => void) | null = null;
   private baseUrl: string;
   private sessionId: string;
 
@@ -106,6 +107,13 @@ export class SSEClient {
         }
       });
 
+      this.eventSource.addEventListener('override', (event: MessageEvent) => {
+        logger.sse('Received override event with prompt:', event.data);
+        if (this.overrideCallback && event.data) {
+          this.overrideCallback(event.data);
+        }
+      });
+
       this.eventSource.onerror = (error) => {
         logger.sse('SSE connection error:', error);
 
@@ -134,6 +142,13 @@ export class SSEClient {
    */
   onRetry(callback: () => void): void {
     this.retryCallback = callback;
+  }
+
+  /**
+   * Register a callback for override events
+   */
+  onOverride(callback: (prompt: string) => void): void {
+    this.overrideCallback = callback;
   }
 
   /**

@@ -115,6 +115,13 @@ Scan the QR code with your mobile device to access the remote permission interfa
   - Sends "retry" + ENTER to trigger permission re-request
   - Delay ensures menu is fully dismissed before retry command
 
+- **`override` event**: Sends a custom prompt to claude
+  - Receives prompt text in the event data field
+  - Sends ESC to cancel the current menu
+  - Waits for configurable delay (default 100ms)
+  - Sends the prompt text + ENTER to claude
+  - SSE format: `event: override\ndata: <prompt text>`
+
 ### Debug Logging
 
 - Silent by default

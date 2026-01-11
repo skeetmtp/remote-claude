@@ -96,6 +96,35 @@ export class PTYManager {
   }
 
   /**
+   * Send an override sequence: ESC + prompt + ENTER
+   * This sends a custom prompt to claude after canceling the current menu
+   */
+  sendOverrideSequence(prompt: string): void {
+    if (!this.pty) {
+      logger.error('Cannot send override sequence: PTY not initialized');
+      return;
+    }
+
+    logger.pty(`Sending override sequence with prompt: "${prompt}"`);
+
+    // Step 1: Send ESC to cancel the menu
+    logger.pty('Sending ESC to cancel current menu');
+    this.pty.write('\x1b');
+
+    // Step 2: Wait for menu to be dismissed, then send prompt + ENTER
+    setTimeout(() => {
+      if (!this.pty) {
+        logger.error('PTY closed during override sequence');
+        return;
+      }
+
+      logger.pty('Sending override prompt');
+      this.pty.write(prompt);
+      this.pty.write('\x0d'); // Send ENTER as control character (CR)
+    }, this.retryDelayMs);
+  }
+
+  /**
    * Register a callback for PTY data output
    */
   onData(callback: (data: string) => void): void {
