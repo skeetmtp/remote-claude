@@ -17,17 +17,19 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "node-pty": "^1.1.0",
+    "debug": "^4.3.4",
     "eventsource": "^2.0.2",
-    "uuid": "^9.0.1",
-    "debug": "^4.3.4"
+    "node-pty": "^1.1.0",
+    "qrcode-terminal": "^0.12.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
-    "@types/node": "^20.10.0",
-    "@types/uuid": "^9.0.7",
     "@types/debug": "^4.1.12",
     "@types/eventsource": "^1.1.15",
-    "tsx": "^4.7.0"
+    "@types/node": "^20.10.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@types/uuid": "^9.0.7",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
   }
 }

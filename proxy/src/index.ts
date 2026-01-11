@@ -6,6 +6,7 @@ import { setupLogging, logger } from './logger';
 import { loadConfig } from './config';
 import { PTYManager } from './pty-manager';
 import { SSEClient } from './sse-client';
+import { displaySessionQR } from './qr-display';
 
 /**
  * Main entry point for the proxy
@@ -65,7 +66,10 @@ async function main() {
     process.exit(1);
   }
 
-  // 10. Wire up PTY event handlers (must be after spawn)
+  // 10. Display QR code and session info
+  displaySessionQR(config.sseUrl, sessionId);
+
+  // 11. Wire up PTY event handlers (must be after spawn)
   ptyManager.onExit((exitInfo) => {
     logger.main(`claude exited with code ${exitInfo.exitCode}`);
     sseClient.disconnect();
@@ -76,7 +80,7 @@ async function main() {
     process.stdout.write(data);
   });
 
-  // 11. Setup stdin/stdout piping
+  // 12. Setup stdin/stdout piping
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
     logger.main('Stdin set to raw mode');
@@ -86,7 +90,7 @@ async function main() {
     ptyManager.write(data.toString());
   });
 
-  // 12. Handle terminal resize
+  // 13. Handle terminal resize
   if (process.stdout.isTTY) {
     process.stdout.on('resize', () => {
       const cols = process.stdout.columns || 80;
@@ -96,7 +100,7 @@ async function main() {
     });
   }
 
-  // 13. Connect to SSE server (non-blocking)
+  // 14. Connect to SSE server (non-blocking)
   sseClient.onRetry(() => {
     logger.sse('Received retry event from server');
     ptyManager.sendRetrySequence();
