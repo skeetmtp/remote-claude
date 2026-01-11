@@ -83,6 +83,13 @@ claude <-> hook <-> web server api <-> SPA page <-> user mobile phone
 - tailwindcss
 - shadcn/ui
 
+## How to use
+
+```bash
+claude --model sonnet "ask user question using tool: 'are you happy ? yes or no'" --debug
+claude --model sonnet "run echo 'foo' > foo.txt' command" --debug
+```
+
 Example of claude config:
 
 ```json

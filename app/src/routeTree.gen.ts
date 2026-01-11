@@ -13,7 +13,9 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SessionSessionIdRouteImport } from './routes/session/$sessionId'
 import { Route as ApiHooksRouteImport } from './routes/api/hooks'
+import { Route as ApiEventsRouteImport } from './routes/api/events'
 import { Route as DemoStartServerFuncs2RouteImport } from './routes/demo/start.server-funcs2'
 import { Route as DemoStartServerFuncsRouteImport } from './routes/demo/start.server-funcs'
 import { Route as DemoStartApiRequestRouteImport } from './routes/demo/start.api-request'
@@ -44,9 +46,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
+  id: '/session/$sessionId',
+  path: '/session/$sessionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHooksRoute = ApiHooksRouteImport.update({
   id: '/api/hooks',
   path: '/api/hooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEventsRoute = ApiEventsRouteImport.update({
+  id: '/api/events',
+  path: '/api/events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DemoStartServerFuncs2Route = DemoStartServerFuncs2RouteImport.update({
@@ -100,7 +112,9 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/api/events': typeof ApiEventsRoute
   '/api/hooks': typeof ApiHooksRoute
+  '/session/$sessionId': typeof SessionSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
@@ -116,7 +130,9 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/api/events': typeof ApiEventsRoute
   '/api/hooks': typeof ApiHooksRoute
+  '/session/$sessionId': typeof SessionSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
@@ -133,7 +149,9 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/api/events': typeof ApiEventsRoute
   '/api/hooks': typeof ApiHooksRoute
+  '/session/$sessionId': typeof SessionSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
@@ -151,7 +169,9 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/signup'
+    | '/api/events'
     | '/api/hooks'
+    | '/session/$sessionId'
     | '/api/auth/$'
     | '/demo/api/names'
     | '/demo/start/api-request'
@@ -167,7 +187,9 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/signup'
+    | '/api/events'
     | '/api/hooks'
+    | '/session/$sessionId'
     | '/api/auth/$'
     | '/demo/api/names'
     | '/demo/start/api-request'
@@ -183,7 +205,9 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/signup'
+    | '/api/events'
     | '/api/hooks'
+    | '/session/$sessionId'
     | '/api/auth/$'
     | '/demo/api/names'
     | '/demo/start/api-request'
@@ -200,7 +224,9 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
+  ApiEventsRoute: typeof ApiEventsRoute
   ApiHooksRoute: typeof ApiHooksRoute
+  SessionSessionIdRoute: typeof SessionSessionIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   DemoApiNamesRoute: typeof DemoApiNamesRoute
   DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute
@@ -242,11 +268,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/session/$sessionId': {
+      id: '/session/$sessionId'
+      path: '/session/$sessionId'
+      fullPath: '/session/$sessionId'
+      preLoaderRoute: typeof SessionSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hooks': {
       id: '/api/hooks'
       path: '/api/hooks'
       fullPath: '/api/hooks'
       preLoaderRoute: typeof ApiHooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/events': {
+      id: '/api/events'
+      path: '/api/events'
+      fullPath: '/api/events'
+      preLoaderRoute: typeof ApiEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/demo/start/server-funcs2': {
@@ -320,7 +360,9 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
+  ApiEventsRoute: ApiEventsRoute,
   ApiHooksRoute: ApiHooksRoute,
+  SessionSessionIdRoute: SessionSessionIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   DemoApiNamesRoute: DemoApiNamesRoute,
   DemoStartApiRequestRoute: DemoStartApiRequestRoute,
