@@ -118,9 +118,17 @@ export class PTYManager {
         return;
       }
 
-      logger.pty('Sending override prompt');
+      logger.pty('Sending override prompt:', prompt);
       this.pty.write(prompt);
-      this.pty.write('\x0d'); // Send ENTER as control character (CR)
+      setTimeout(() => {
+        if (!this.pty) {
+          logger.error('PTY closed during override sequence');
+          return;
+        }
+
+        logger.pty('Sending ENTER');
+        this.pty.write('\x0d'); // Send ENTER as control character (CR)
+      }, this.retryDelayMs);
     }, this.retryDelayMs);
   }
 

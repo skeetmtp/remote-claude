@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionSessionIdRouteImport } from './routes/session/$sessionId'
+import { Route as ApiOverrideRouteImport } from './routes/api/override'
 import { Route as ApiHooksRouteImport } from './routes/api/hooks'
 import { Route as ApiEventsRouteImport } from './routes/api/events'
 import { Route as DemoStartServerFuncs2RouteImport } from './routes/demo/start.server-funcs2'
@@ -49,6 +50,11 @@ const IndexRoute = IndexRouteImport.update({
 const SessionSessionIdRoute = SessionSessionIdRouteImport.update({
   id: '/session/$sessionId',
   path: '/session/$sessionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOverrideRoute = ApiOverrideRouteImport.update({
+  id: '/api/override',
+  path: '/api/override',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHooksRoute = ApiHooksRouteImport.update({
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/api/events': typeof ApiEventsRoute
   '/api/hooks': typeof ApiHooksRoute
+  '/api/override': typeof ApiOverrideRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/demo/api/names': typeof DemoApiNamesRoute
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/api/events': typeof ApiEventsRoute
   '/api/hooks': typeof ApiHooksRoute
+  '/api/override': typeof ApiOverrideRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/demo/api/names': typeof DemoApiNamesRoute
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/api/events': typeof ApiEventsRoute
   '/api/hooks': typeof ApiHooksRoute
+  '/api/override': typeof ApiOverrideRoute
   '/session/$sessionId': typeof SessionSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/demo/api/names': typeof DemoApiNamesRoute
@@ -171,6 +180,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api/events'
     | '/api/hooks'
+    | '/api/override'
     | '/session/$sessionId'
     | '/api/auth/$'
     | '/demo/api/names'
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api/events'
     | '/api/hooks'
+    | '/api/override'
     | '/session/$sessionId'
     | '/api/auth/$'
     | '/demo/api/names'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api/events'
     | '/api/hooks'
+    | '/api/override'
     | '/session/$sessionId'
     | '/api/auth/$'
     | '/demo/api/names'
@@ -226,6 +238,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   ApiEventsRoute: typeof ApiEventsRoute
   ApiHooksRoute: typeof ApiHooksRoute
+  ApiOverrideRoute: typeof ApiOverrideRoute
   SessionSessionIdRoute: typeof SessionSessionIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   DemoApiNamesRoute: typeof DemoApiNamesRoute
@@ -273,6 +286,13 @@ declare module '@tanstack/react-router' {
       path: '/session/$sessionId'
       fullPath: '/session/$sessionId'
       preLoaderRoute: typeof SessionSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/override': {
+      id: '/api/override'
+      path: '/api/override'
+      fullPath: '/api/override'
+      preLoaderRoute: typeof ApiOverrideRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hooks': {
@@ -362,6 +382,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   ApiEventsRoute: ApiEventsRoute,
   ApiHooksRoute: ApiHooksRoute,
+  ApiOverrideRoute: ApiOverrideRoute,
   SessionSessionIdRoute: SessionSessionIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   DemoApiNamesRoute: DemoApiNamesRoute,

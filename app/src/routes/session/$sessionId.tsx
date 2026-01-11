@@ -1,11 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { PermissionRequestCard } from '@/components/permission-request-card'
+import { AskUserQuestionCard } from '@/components/ask-user-question-card'
 import type { PermissionRequest } from '@/lib/session-store'
 
 export const Route = createFileRoute('/session/$sessionId')({
   component: SessionPage,
 })
+
+function isSingleSelectAskUserQuestion(request: PermissionRequest): boolean {
+  if (request.toolName !== 'AskUserQuestion') return false
+  const toolInput = request.toolInput as {
+    questions?: Array<{ multiSelect?: boolean }>
+  }
+  const questions = toolInput?.questions ?? []
+  return questions.length > 0 && questions.every((q) => q.multiSelect === false)
+}
 
 function SessionPage() {
   const { sessionId } = Route.useParams()
@@ -64,9 +74,17 @@ function SessionPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {requests.map((request) => (
-            <PermissionRequestCard key={request.id} request={request} />
-          ))}
+          {requests.map((request) =>
+            isSingleSelectAskUserQuestion(request) ? (
+              <AskUserQuestionCard
+                key={request.id}
+                request={request}
+                sessionId={sessionId}
+              />
+            ) : (
+              <PermissionRequestCard key={request.id} request={request} />
+            )
+          )}
         </div>
       )}
     </div>

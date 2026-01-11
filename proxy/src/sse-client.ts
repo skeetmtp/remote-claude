@@ -89,7 +89,7 @@ export class SSEClient {
    * Connect to the SSE endpoint
    */
   connect(): void {
-    const url = `${this.baseUrl}/events?sessionId=${this.sessionId}`;
+    const url = `${this.baseUrl}/api/events?sessionId=${this.sessionId}`;
     logger.sse(`Connecting to SSE: ${url}`);
 
     try {
@@ -108,7 +108,7 @@ export class SSEClient {
       });
 
       this.eventSource.addEventListener('override', (event: MessageEvent) => {
-        logger.sse('Received override event with prompt:', event.data);
+        logger.sse('Received override event with prompt:', JSON.stringify(event.data));
         if (this.overrideCallback && event.data) {
           this.overrideCallback(event.data);
         }

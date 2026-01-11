@@ -70,6 +70,7 @@ const generateOutput = (hookData: any) => {
       baseOutput.hookSpecificOutput.message = JSON.stringify(answers);
     }
   } else if (hookEventName === 'PostToolUse') {
+    return undefined;
     if(toolName === 'AskUserQuestion') {
       const answers = {} as Record<string, string>;
       for(const entry of hookData.tool_input.questions) {
@@ -124,7 +125,7 @@ export const Route = createFileRoute('/api/hooks')({
         const sessionId = hookData.session_id
 
         // Store the permission request if we have a session ID
-        if (sessionId) {
+        if (sessionId && hookEventName === 'PermissionRequest') {
           addRequest(sessionId, {
             toolName: hookData.tool_name || 'unknown',
             toolInput: hookData.tool_input || {},

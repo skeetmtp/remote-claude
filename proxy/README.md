@@ -221,6 +221,9 @@ To see SSE connection details:
 DEBUG=proxy:sse npm run start
 ```
 
-## License
+## Ex of usage
 
-MIT
+```bash
+./proxy/bin/run.sh --model sonnet "ask user question using tool: 'are you happy ? yes or no'" --debug
+./proxy/bin/run.sh --model sonnet "run echo 'foo' > foo.txt' command" --debug
+```
